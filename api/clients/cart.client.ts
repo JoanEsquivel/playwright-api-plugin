@@ -1,14 +1,15 @@
-import type { APIRequestContext, APIResponse } from '@playwright/test';
-import type { AddCartItemInput } from '@/api/schemas/cart.schema';
+import type { APIRequestContext } from '@playwright/test';
+import { CartSchema, type AddCartItemInput } from '@/api/schemas/cart.schema';
+import { typed } from '@/api/typed-response';
 
 export class CartClient {
   constructor(private readonly request: APIRequestContext) {}
 
-  async get(): Promise<APIResponse> {
-    return this.request.get('cart');
+  async get() {
+    return typed(this.request.get('cart'), CartSchema);
   }
 
-  async addItem(input: AddCartItemInput): Promise<APIResponse> {
-    return this.request.post('cart/items', { data: input });
+  async addItem(input: AddCartItemInput) {
+    return typed(this.request.post('cart/items', { data: input }), CartSchema);
   }
 }

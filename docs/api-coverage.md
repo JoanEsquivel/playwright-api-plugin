@@ -9,8 +9,8 @@ Auth column: **–** public · **B** any Bearer token · **B-admin** Bearer toke
 | OpenAPI says | The server does | Consequence |
 |---|---|---|
 | Validation errors are `422` with FastAPI's `HTTPValidationError` | `400` with `{ error: { code: "VALIDATION_ERROR", message } }` | Assert `400` + `ErrorResponseSchema`. Never generate expectations from the document alone. |
-| Error responses (`401`, `403`, `404`, `409`) are not documented at all | One envelope for every non-2xx: `{ error: { code, message } }` | `ErrorResponseSchema` in `common.schema.ts` covers all of them. |
-| Cart operations require `HTTPBearer` | `POST cart` needs no identity at all, and the other cart operations also accept an `X-Cart-Id` header whose value came from `POST cart` (an arbitrary id answers 401) | A guest-cart client needs a header fixture, not a token. Pending. |
+| Error responses (`401`, `403`, `404`, `409`) are not documented at all | One envelope for every non-2xx: `{ error: { code, message } }` | `response.error()` validates it for every client method (`ErrorResponseSchema` in `common.schema.ts`). |
+| Cart operations require `HTTPBearer` | `POST cart` needs no identity at all, and the other cart operations also accept an `X-Cart-Id` header whose value came from `POST cart` (an unknown id answers 401). Any existing cart id works, including a registered user's: see `bug-reports/2026-09-20-cart-readable-and-writable-by-id.md` | A guest-cart client needs a header fixture, not a token. Pending. |
 | `POST /auth/logout` returns `204` | It does, but the token stays valid until it expires (stateless JWT, 24 h) | Do not write a "401 after logout" test. |
 
 ## Operations
@@ -33,7 +33,7 @@ Auth column: **–** public · **B** any Bearer token · **B-admin** Bearer toke
 | POST | `products/{id}/reviews` | B | pending (mutates a global rating: use a product the test created) |
 | POST | `cart` | – | pending |
 | GET | `cart` | cart | `orders.spec.ts` (empty after checkout) |
-| POST | `cart/items` | cart | `orders.spec.ts` (201 + `CartSchema`, on a `tempProduct`) |
+| POST | `cart/items` | cart | `orders.spec.ts` (201 + cart contract, on a `tempProduct`) |
 | PATCH | `cart/items/{productId}` | cart | pending |
 | DELETE | `cart/items/{productId}` | cart | pending (answers 200 + cart, not 204) |
 | POST | `cart/coupon` | cart | pending |
@@ -41,15 +41,15 @@ Auth column: **–** public · **B** any Bearer token · **B-admin** Bearer toke
 | POST | `coupons/validate` | – | pending |
 | POST | `orders` | B | `orders.spec.ts` (201 paid + totals, 400 `PAYMENT_DECLINED`, 400 `EMPTY_CART`) |
 | GET | `orders` | B | `orders.spec.ts` (empty after a declined payment) |
-| GET | `orders/{id}` | B | `orders.spec.ts` (200 owner, 404 other customer) |
+| GET | `orders/{id}` | B | `orders.spec.ts` (200 owner, 404 other customer, 404 unknown id) |
 | GET | `wishlist` | B | pending |
 | POST | `wishlist/{productId}` | B | pending |
 | DELETE | `wishlist/{productId}` | B | pending |
 | GET | `files/products.csv` | – | pending |
 | GET | `files/sample-report.pdf` | – | pending |
 | POST | `files/upload` | – | pending |
-| GET | `admin/products` | B-admin | `admin-products.spec.ts` (401, 403, 200 + `pageOf(ProductSchema)`) |
-| POST | `admin/products` | B-admin | `admin-products.spec.ts` (201 + `ProductSchema`) · every `createProduct` / `tempProduct` |
+| GET | `admin/products` | B-admin | `admin-products.spec.ts` (401, 403, 200 + page contract) |
+| POST | `admin/products` | B-admin | `admin-products.spec.ts` (201 + product contract) · every `createProduct` / `tempProduct` |
 | PUT | `admin/products/{id}` | B-admin | pending |
 | DELETE | `admin/products/{id}` | B-admin | `admin-products.spec.ts` (204) · teardown of `createProduct` |
 | GET | `admin/orders` | B-admin | pending |

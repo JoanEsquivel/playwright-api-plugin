@@ -9,6 +9,7 @@
   },
   "pricing": {
     "shippingFlat": 4.99,
+    "freeShippingThreshold": 50,
     "taxRate": 0.08
   },
   "cards": {

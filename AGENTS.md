@@ -30,19 +30,20 @@ With the `API_SERVER_*` variables set, `pnpm test` starts the API when it is dow
 ## Layout
 
 ```
-api/         clients/*.client.ts (one class per resource, returns APIResponse) · schemas/*.schema.ts (zod + input types)
-fixtures/    api.fixtures.ts (clients + all authentication) · index.fixtures.ts (mergeTests + toMatchSchema)
+api/         clients/*.client.ts (one class per resource; each method binds its response schema) · schemas/*.schema.ts (zod + input types) · typed-response.ts
+fixtures/    api.fixtures.ts (clients, authentication, throwaway data) · index.fixtures.ts (mergeTests; only import source for specs)
 utils/       env.ts (typed env access)
 tests/       api/*.spec.ts
 data/        *.json test data (never credentials)
 docs/        api-coverage.md (endpoint → auth → spec) · agent-guide.md · decisions.md
+bug-reports/ API defects found while testing (never patched over in a test)
 .github/     workflows: lint, playwright-parallel · actions/setup-playwright
 ```
 
 ## Non-negotiable rules
 
 1. **Assertions live in specs.** `api/**` never calls `expect`. Enforced: `no-restricted-syntax`, `no-restricted-imports`.
-2. **Clients return the raw `APIResponse`.** No parsing, no `throw`, no retries; zod validates in the spec with `toMatchSchema`.
+2. **Clients declare the contract, specs read it.** Every client method wraps its request in `typed(request, Schema)` (`api/typed-response.ts`). The result is still an `APIResponse`, plus `data()` (body validated against that schema, type inferred) and `error()` (validated error envelope). Clients never look at the status, never assert, never retry. Specs never call `response.json()` or `JSON.parse`, never import a schema (types only) and never annotate or cast a body by hand. The first three are enforced by lint.
 3. **Specs import `test`/`expect` only from `@/fixtures/index.fixtures`.** Never from `@playwright/test` (types excepted). Imports across folders use the `@/` alias (repo root, `tsconfig.json` `paths`); `./` only for a sibling file; never `../`. Enforced by lint.
 4. **Request paths have no leading slash** (`'auth/login'`). A leading slash drops the `API_BASE_URL` prefix. Enforced by lint.
 5. **Observe before you type.** Schemas, status codes and error shapes come from a real response captured with `curl`. The OpenAPI document is a map; where it disagrees with the server, the server wins and `docs/api-coverage.md` records it.

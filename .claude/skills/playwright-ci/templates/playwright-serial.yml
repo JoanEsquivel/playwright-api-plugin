@@ -3,24 +3,37 @@ on:
   workflow_dispatch:
 env:
   CI: true
-  BASE_URL: ${{ vars.BASE_URL || '{{BASE_URL}}' }}
-  API_BASE_URL: ${{ vars.API_BASE_URL || '{{API_BASE_URL}}' }}
-  E2E_USERNAME: ${{ secrets.E2E_USERNAME }}
-  E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
-  API_USERNAME: ${{ secrets.API_USERNAME }}
-  API_PASSWORD: ${{ secrets.API_PASSWORD }}
+  API_BASE_URL: ${{ vars.API_BASE_URL || 'http://localhost:8000/api/' }}
+  API_USER_EMAIL: ${{ secrets.API_USER_EMAIL }}
+  API_USER_PASSWORD: ${{ secrets.API_USER_PASSWORD }}
+  API_ADMIN_EMAIL: ${{ secrets.API_ADMIN_EMAIL }}
+  API_ADMIN_PASSWORD: ${{ secrets.API_ADMIN_PASSWORD }}
+  # Playwright's webServer starts the API under test with these.
+  API_SERVER_COMMAND: ${{ vars.API_SERVER_COMMAND || 'uv run uvicorn app.main:app --port 8000 --log-level warning' }}
+  API_SERVER_CWD: ${{ vars.API_SERVER_CWD || 'app-under-test/backend' }}
+  API_SERVER_READY_URL: ${{ vars.API_SERVER_READY_URL || 'http://localhost:8000/api/health' }}
 jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+      - name: Check out the API under test
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.API_SERVER_REPOSITORY || 'JoanEsquivel/the-test-automation-website' }}
+          path: app-under-test
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+      - name: Install API dependencies
+        working-directory: ${{ env.API_SERVER_CWD }}
+        run: uv sync
       - uses: ./.github/actions/setup-playwright
       - name: Run tests with a single worker
-        run: {{PM_EXEC}} playwright test --workers=1
+        run: pnpm exec playwright test --workers=1
       - name: Merge blob report to HTML
         if: ${{ !cancelled() }}
-        run: {{PM_EXEC}} playwright merge-reports --reporter html ./blob-report
+        run: pnpm exec playwright merge-reports --reporter html ./blob-report
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
         with:

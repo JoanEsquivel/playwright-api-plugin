@@ -1,9 +1,9 @@
 name: Setup Playwright
-description: Install pnpm, Node, dependencies and cached Playwright browsers
+description: Install pnpm, Node and dependencies; browsers only when a job asks for them
 inputs:
   browsers:
-    description: Space-separated browsers to install
-    default: chromium
+    description: Space-separated browsers to install. Empty (default) for API-only jobs.
+    default: ''
 runs:
   using: composite
   steps:
@@ -11,25 +11,27 @@ runs:
     - uses: actions/setup-node@v4
       with:
         node-version: lts/*
-        cache: {{PM}}
+        cache: pnpm
     - name: Install dependencies
       shell: bash
-      run: {{PM_INSTALL_CI}}
+      run: pnpm install --frozen-lockfile
     - name: Resolve Playwright version
+      if: inputs.browsers != ''
       id: pw
       shell: bash
       run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
     - name: Cache Playwright browsers
+      if: inputs.browsers != ''
       id: cache
       uses: actions/cache@v4
       with:
         path: ~/.cache/ms-playwright
         key: ${{ runner.os }}-playwright-${{ steps.pw.outputs.version }}-${{ inputs.browsers }}
     - name: Install browsers
-      if: steps.cache.outputs.cache-hit != 'true'
+      if: inputs.browsers != '' && steps.cache.outputs.cache-hit != 'true'
       shell: bash
-      run: {{PM_EXEC}} playwright install ${{ inputs.browsers }} --with-deps
+      run: pnpm exec playwright install ${{ inputs.browsers }} --with-deps
     - name: Install system dependencies only
-      if: steps.cache.outputs.cache-hit == 'true'
+      if: inputs.browsers != '' && steps.cache.outputs.cache-hit == 'true'
       shell: bash
-      run: {{PM_EXEC}} playwright install-deps ${{ inputs.browsers }}
+      run: pnpm exec playwright install-deps ${{ inputs.browsers }}

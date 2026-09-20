@@ -8,28 +8,45 @@ Imports: `@/` is the repository root (`tsconfig.json` `paths`; Playwright, `tsc`
 
 ```ts
 import type { APIRequestContext, APIResponse } from '@playwright/test';
-import type { Create<Resource>Input } from '@/api/schemas/<resource>.schema';
+import { <Resource>PageSchema, <Resource>Schema, type Create<Resource>Input } from '@/api/schemas/<resource>.schema';
+import { typed } from '@/api/typed-response';
 
 export interface <Resource>ListParams { page?: number; pageSize?: number }
 
 export class <Resource>Client {
   constructor(private readonly request: APIRequestContext) {}
 
-  async list(params: <Resource>ListParams = {}): Promise<APIResponse> {
-    return this.request.get('<resources>', { params: { ...params } });
+  async list(params: <Resource>ListParams = {}) {
+    return typed(this.request.get('<resources>', { params: { ...params } }), <Resource>PageSchema);
   }
 
-  async getById(id: string): Promise<APIResponse> {
-    return this.request.get(`<resources>/${id}`);
+  async getById(id: string) {
+    return typed(this.request.get(`<resources>/${id}`), <Resource>Schema);
   }
 
-  async create(payload: Create<Resource>Input): Promise<APIResponse> {
-    return this.request.post('<resources>', { data: payload });
+  async create(payload: Create<Resource>Input) {
+    return typed(this.request.post('<resources>', { data: payload }), <Resource>Schema);
+  }
+
+  /** 204, no body: nothing to type. */
+  async delete(id: string): Promise<APIResponse> {
+    return this.request.delete(`<resources>/${id}`);
   }
 }
 ```
 
-Rules: typed inputs, raw `APIResponse` out, no `expect`, no `throw`, no host.
+Rules: typed inputs, `typed(request, Schema)` out with the return type inferred (never written by hand), no `expect`, no status checks, no host.
+
+## Typed responses (`api/typed-response.ts`)
+
+`typed()` awaits the request and returns the same `APIResponse` with two extra methods:
+
+- `data()` validates the body against the schema the client declared and returns `z.output<typeof Schema>`. The spec gets `Order`, `Cart`, `ProductPage`… without importing or naming anything.
+- `error()` validates the body against `ErrorResponseSchema` and returns the typed envelope.
+
+`idOf(response)` reads just the id of a created resource, without validating the rest, for cleanup bookkeeping in factory fixtures.
+
+Both throw an `Error` with the URL, the status and the zod path when the body does not match (or a clear "body that is not JSON" for an empty or HTML answer), which is how contract drift shows up. Nothing is validated until a spec or fixture asks, so the same client method serves positive and negative tests. This file is the only place where `response.json()` and `unknown` appear.
 
 **No leading slash in paths.** `API_BASE_URL` carries the prefix (`http://host/api/`, normalised by `utils/env.ts` to end with `/`). `request.get('/orders')` resolves against the host root and silently drops `/api`; `request.get('orders')` keeps it. Lint rejects the leading slash in `api/**`.
 
@@ -44,6 +61,8 @@ export const <Resource>Schema = z.object({
   createdAt: z.iso.datetime(),
 });
 export type <Resource> = z.infer<typeof <Resource>Schema>;
+
+export const <Resource>PageSchema = pageOf(<Resource>Schema);   // or z.array(<Resource>Schema) for a bare list
 
 export interface Create<Resource>Input { name: string }
 ```
@@ -61,7 +80,7 @@ Derive from a real response (`curl -s "${API_BASE_URL}<resources>/<id>" | head -
 | `apiWithToken(token)` | test | Bearer clients for any token (also crafted/invalid ones); contexts disposed after the test |
 | `authedApi` / `adminApi` | test | Seeded accounts. **Read-only**: their state is shared by all workers and runs |
 | `registerUser()` / `newUserApi` | test | A brand-new user with private state: every test that mutates per-user data |
-| `createProduct(input)` / `tempProduct` | test | A throwaway global resource with a unique name, deleted after the test. `createProduct` returns the raw response (for tests that assert the creation itself); `tempProduct` returns the parsed product |
+| `createProduct(input)` / `tempProduct` | test | A throwaway global resource with a unique name, deleted after the test. `createProduct` returns the typed response (for tests that assert the creation itself); `tempProduct` returns the product |
 
 ```ts
 const ROLE_CREDENTIALS = {
@@ -77,7 +96,7 @@ tokenFor: [async ({}, use) => {
     const { email, password } = ROLE_CREDENTIALS[role]();
     const response = await new AuthClient(context).login(email, password);
     if (!response.ok()) throw new Error(`API login failed for role "${role}": ${response.status()} ${await response.text()}`);
-    return AuthResponseSchema.parse(await response.json()).token;
+    return (await response.data()).token;
   };
   await use((role) => {
     const cached = tokens.get(role);
@@ -116,25 +135,21 @@ A suite that follows these rules passes with `--repeat-each 5 --workers 4` again
 
 ```ts
 import { test, expect } from '@/fixtures/index.fixtures';
-import { ErrorResponseSchema } from '@/api/schemas/common.schema';
-import { <Resource>Schema } from '@/api/schemas/<resource>.schema';
 import data from '@/data/api.json';
 
 test.describe('<Resource> API', { tag: ['@api'] }, () => {
   test('should return a <resource> by id', { tag: ['@smoke'] }, async ({ authedApi }) => {
     const response = await authedApi.<resource>.getById(data.<resources>.knownId);
     expect(response.status()).toBe(200);
-    const body: unknown = await response.json();
-    expect(body).toMatchSchema(<Resource>Schema);
-    expect(<Resource>Schema.parse(body).id).toBe(data.<resources>.knownId);
+    const <resource> = await response.data();          // validated and typed by the client's schema
+    expect(<resource>.id).toBe(data.<resources>.knownId);
   });
 
   test('should reject an anonymous request with 401', { tag: ['@regression'] }, async ({ api }) => {
     const response = await api.<resource>.getById(data.<resources>.knownId);
     expect(response.status()).toBe(401);
-    const body: unknown = await response.json();
-    expect(body).toMatchSchema(ErrorResponseSchema);
-    expect(ErrorResponseSchema.parse(body).error.code).toBe('UNAUTHORIZED');
+    const { error } = await response.error();
+    expect(error.code).toBe('UNAUTHORIZED');
   });
 });
 ```

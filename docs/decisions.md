@@ -22,7 +22,7 @@ Short records of the choices behind this framework and kit. Newest last. The kit
 **Why:** Tests declare what they need as parameters; wiring changes in one place; `mergeTests` keeps concerns separated.
 **Consequences:** Adding a client without wiring it is a rule violation caught by the delete/create checklists.
 
-## 5. API clients return `APIResponse`; zod validates in specs
+## 5. API clients return `APIResponse`; zod validates in specs — replaced by 18
 **Decision:** Clients do not parse or assert. Specs check status, then `expect(body).toMatchSchema(Schema)` and business rules.
 **Why:** Keeps clients reusable for negative cases (4xx) and makes contract drift visible with a readable zod error.
 **Consequences:** One schema file per resource; the `toMatchSchema` matcher is defined in the fixtures index.
@@ -86,6 +86,11 @@ Short records of the choices behind this framework and kit. Newest last. The kit
 **Decision:** `tsconfig.json` maps `@/*` to the repository root. Imports across folders use it (`@/fixtures/index.fixtures`, `@/api/schemas/auth.schema`, `@/data/api.json`); `./` is allowed only for a sibling file; `../` is forbidden.
 **Why:** Relative chains (`../../..`) break when a spec moves and hide where a module lives. Playwright, `tsc` and typescript-eslint all read the same `paths` entry, so the alias needs no extra dependency or build step.
 **Consequences:** A lint rule rejects any import starting with `../` in every TypeScript file. One deliberate exception to the wording: `playwright.config.ts` imports `./utils/env` relatively, because the config file is loaded before anything else and should not depend on alias resolution.
+
+## 18. Typed clients: the contract is declared once, the spec reads `data()`
+**Decision:** Every client method returns `typed(this.request.<verb>(…), Schema)` (`api/typed-response.ts`): the same `APIResponse`, plus `data()` (body validated against that schema, type inferred with `z.output`) and `error()` (validated error envelope). Specs go status → `await response.data()` → business rules. The `toMatchSchema` matcher and the `const body: unknown = await response.json()` pattern are gone.
+**Why:** `response.json()` is `any`. The old pattern was safe but cost three lines per response, made every spec import and choose the schema of every endpoint, and read as if types were missing. Binding the schema where the endpoint is defined makes the type follow the contract automatically, in specs and fixtures alike, and a schema change breaks `tsc` everywhere the field is used.
+**Consequences:** Clients still never assert and never look at the status; nothing is validated until a spec or fixture asks, so one method serves positive and negative tests. A contract mismatch surfaces as an `Error` with URL, status and zod path instead of a matcher diff. `api/typed-response.ts` is the only file with `response.json()` and `unknown`; lint rejects `.json()` in `tests/**`. Endpoints without a body return the plain `APIResponse`.
 
 ## Appendix — tool compatibility matrix
 

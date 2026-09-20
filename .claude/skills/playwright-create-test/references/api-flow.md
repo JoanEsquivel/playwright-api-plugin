@@ -28,12 +28,12 @@ Probing with a real account mutates it. Register a throwaway user for probes tha
 
 - One `z.object` per payload shape; strings `.min(1)` when never empty, `z.email()`, `z.url()`, `z.iso.datetime()`, `z.enum([...])` where the sample and the contract show those formats.
 - `.optional()` / `.nullable()` only for fields absent or null in at least one real sample.
-- Export `XSchema`, `type X = z.infer<typeof XSchema>` and the request input interfaces. Reuse `ErrorResponseSchema` and `pageOf(XSchema)` from `common.schema.ts`.
+- Export `XSchema`, `type X = z.infer<typeof XSchema>`, the list schema the endpoints return (`XPageSchema = pageOf(XSchema)` or `XListSchema = z.array(XSchema)`) and the request input interfaces. Reuse `ErrorResponseSchema` and `pageOf` from `common.schema.ts`.
 
 ## C. Client (`api/clients/<resource>.client.ts`)
 
 - Class `<Resource>Client` with `constructor(private readonly request: APIRequestContext)`.
-- One method per endpoint, typed params, path **without a leading slash**, returns `Promise<APIResponse>`. No parsing, no assertions.
+- One method per endpoint, typed params, path **without a leading slash**, returns `typed(this.request.<verb>(…), <Schema>)` with the return type inferred. A 204 endpoint returns the plain `APIResponse`. No status checks, no assertions.
 
 ## D. Fixture wiring (`fixtures/api.fixtures.ts`)
 
@@ -53,31 +53,26 @@ Choose the fixture by what the test does to the server:
 
 ```ts
 import { test, expect } from '@/fixtures/index.fixtures';
-import { ErrorResponseSchema, pageOf } from '@/api/schemas/common.schema';
-import { <Resource>Schema } from '@/api/schemas/<resource>.schema';
 import data from '@/data/api.json';
 
 test.describe('<Resource> API', { tag: ['@api'] }, () => {
   test('should list <resources>', { tag: ['@smoke'] }, async ({ authedApi }) => {
     const response = await authedApi.<resource>.list({ pageSize: 5 });
     expect(response.status()).toBe(200);
-    const body: unknown = await response.json();
-    const PageSchema = pageOf(<Resource>Schema);
-    expect(body).toMatchSchema(PageSchema);
-    expect(PageSchema.parse(body).items.length).toBeLessThanOrEqual(5);
+    const page = await response.data();                 // typed from the schema bound in the client
+    expect(page.items.length).toBeLessThanOrEqual(5);
   });
 
   test('should return 404 for an unknown id', { tag: ['@regression'] }, async ({ authedApi }) => {
     const response = await authedApi.<resource>.getById(data.<resources>.missingId);
     expect(response.status()).toBe(404);
-    const errorBody: unknown = await response.json();
-    expect(errorBody).toMatchSchema(ErrorResponseSchema);
-    expect(ErrorResponseSchema.parse(errorBody).error.code).toBe('NOT_FOUND');
+    const { error } = await response.error();
+    expect(error.code).toBe('NOT_FOUND');
   });
 });
 ```
 
-Put ids, search terms and invalid inputs in `data/api.json`. Use the status codes observed in the probe; never `ok()` as a substitute for a specific code. Never assert absolute shared state (list totals, counters, stock).
+Specs never import schemas, call `response.json()` or annotate a body: `data()` and `error()` give validated, typed values. Put ids, search terms and invalid inputs in `data/api.json`. Use the status codes observed in the probe; never `ok()` as a substitute for a specific code. Never assert absolute shared state (list totals, counters, stock).
 
 ## F. Run
 
@@ -89,4 +84,4 @@ pnpm exec playwright test tests/api/<resource>.spec.ts --repeat-each 5 --workers
 
 Then add the endpoint rows to `docs/api-coverage.md`.
 
-Schema failures print the zod path (`items[0].brand: expected string, received undefined`) → check the sample again before loosening the schema; loosen only with evidence from a real payload.
+Contract failures come from `data()` with the URL, the status and the zod path (`expected string, received undefined → at items[0].brand`) → check the sample again before loosening the schema; loosen only with evidence from a real payload.

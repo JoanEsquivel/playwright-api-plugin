@@ -46,7 +46,7 @@ If something required is missing it asks one question, then continues. State the
 Cover the wishlist: GET wishlist, POST wishlist/{productId}, DELETE wishlist/{productId}. Happy path, 409 when the product is already there, 404 for an unknown product, 401 without a token. Derive the zod schemas from real responses. Tag the happy path @smoke.
 ```
 
-Expect: probe output (`curl`), `api/schemas/wishlist.schema.ts`, `api/clients/wishlist.client.ts`, the wiring in `createClients`, `tests/api/wishlist.spec.ts` using `newUserApi` (the wishlist is per-user state), new rows in `docs/api-coverage.md`, and the run output including the `--repeat-each 5 --workers 4` isolation check.
+Expect: probe output (`curl`), `api/schemas/wishlist.schema.ts`, `api/clients/wishlist.client.ts` with every method bound to its schema through `typed()`, the wiring in `createClients`, `tests/api/wishlist.spec.ts` using `newUserApi` (the wishlist is per-user state), new rows in `docs/api-coverage.md`, and the run output including the `--repeat-each 5 --workers 4` isolation check.
 
 ### Cover the auth matrix of an endpoint
 
@@ -73,7 +73,7 @@ tests/api/orders.spec.ts fails on "should place a paid order from the cart". Her
 ```
 
 Flaky variant: `It fails only with 4 workers; use --repeat-each to find which shared state leaks.`
-Expect: root cause in one sentence, failure class (data / auth / isolation / environment / api-bug / flaky), the diff, and a green `--repeat-each` run. If the API is wrong it writes a bug report under `bug-reports/` instead of patching the test.
+Expect: root cause in one sentence, failure class (contract / data / auth / isolation / environment / api-bug / flaky), the diff, and a green `--repeat-each` run. If the API is wrong it writes a bug report under `bug-reports/` instead of patching the test.
 
 ### Delete tests safely
 
@@ -111,6 +111,7 @@ Review tests/api/orders.spec.ts and api/clients/orders.client.ts against the sta
 | Say who the actor is: anonymous, seeded account, fresh user, admin | Picks the right fixture and keeps the test isolated |
 | Paste the failing command and output | Skips a reproduction round |
 | Ask for root cause before the fix | Prevents loosening a schema to get green |
+| Ask for typed bodies only (`response.data()`) | It will not write `response.json()`, `JSON.parse`, schema imports, `: unknown` or casts in a spec; lint rejects the first three |
 
 | Avoid | Why |
 |---|---|
@@ -134,6 +135,7 @@ Every task ends with: files created or modified (paths), the commands it ran wit
 | `Timed out waiting … from config.webServer` | `API_SERVER_CWD` does not point at the API's folder, its dependencies are not installed, or `API_SERVER_READY_URL` is wrong |
 | Tests pass alone and fail together | Shared state: a test mutates a seeded account or a seeded record. Move it to `newUserApi` or to a resource it creates itself |
 | `API login failed for role "…"` | Wrong credentials in `.env`, or the API was restarted with different seed data |
+| `… answered 200 with a body that does not match the endpoint's response schema` | Contract drift or a schema that was wrong from the start. Read the zod path, `curl` the endpoint, then fix the schema or file a bug |
 | `Cannot find module '@/…'` | The `paths` entry in `tsconfig.json` is missing, or the path after `@/` is not relative to the repository root |
 | A skill does not show in the `/` menu | Folder name must equal the `name` in `SKILL.md`; in Claude Code run `/reload-plugins` |
 | Copilot or Cursor ignore a rule | Regenerate mirrors with `pnpm sync:agents` (the Lint workflow fails when they drift) |

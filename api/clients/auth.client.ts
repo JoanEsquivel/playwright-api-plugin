@@ -1,18 +1,19 @@
-import type { APIRequestContext, APIResponse } from '@playwright/test';
-import type { RegisterInput } from '@/api/schemas/auth.schema';
+import type { APIRequestContext } from '@playwright/test';
+import { AuthResponseSchema, UserSchema, type RegisterInput } from '@/api/schemas/auth.schema';
+import { typed } from '@/api/typed-response';
 
 export class AuthClient {
   constructor(private readonly request: APIRequestContext) {}
 
-  async login(email: string, password: string): Promise<APIResponse> {
-    return this.request.post('auth/login', { data: { email, password } });
+  async login(email: string, password: string) {
+    return typed(this.request.post('auth/login', { data: { email, password } }), AuthResponseSchema);
   }
 
-  async register(input: RegisterInput): Promise<APIResponse> {
-    return this.request.post('auth/register', { data: input });
+  async register(input: RegisterInput) {
+    return typed(this.request.post('auth/register', { data: input }), AuthResponseSchema);
   }
 
-  async me(): Promise<APIResponse> {
-    return this.request.get('auth/me');
+  async me() {
+    return typed(this.request.get('auth/me'), UserSchema);
   }
 }

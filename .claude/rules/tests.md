@@ -6,12 +6,12 @@ paths:
 # Specs (`tests/**`)
 
 - Import only from the fixtures index: `import { test, expect } from '@/fixtures/index.fixtures'`. Never from `@playwright/test` (type imports excepted). Enforced by lint.
-- Every other import uses the `@/` alias too (`@/api/schemas/<resource>.schema`, `@/data/api.json`, `@/utils/env`). Never `../`. Enforced by lint.
+- Every other import uses the `@/` alias too (`@/data/api.json`, `@/utils/env`). Never `../`. From `@/api/schemas/*` a spec may import types only (`import type { Order }`), never a schema. Enforced by lint.
 - Specs live in `tests/api`, one file per resource: `<resource>.spec.ts`.
 - `test.describe('<Resource> API', { tag: ['@api'] }, …)`; tag each test `@smoke` or `@regression`.
 - Test names: `should <verb> <noun> <qualifier>`.
 - Use `test.step` for multi-request flows so reports read like the scenario.
-- Assert status first, then `expect(body).toMatchSchema(Schema)`, then business rules on `Schema.parse(body)`. Type the payload as `unknown` before matching. Assert the exact status code observed, never `ok()`.
+- Assert status first, then `const x = await response.data()` (fails with the zod path when the contract is broken; `x` is fully typed), then business rules on `x`. Negative cases: `const { error } = await response.error()`. Never `response.json()`, `JSON.parse`, a schema import, `: unknown` or a cast (`as Order`) in a spec; lint rejects the first three, review catches the others. Assert the exact status code observed, never `ok()`. Enforced by lint.
 - Pick the fixture by what the test does: `api` (anonymous, 401 cases), `authedApi` / `adminApi` (seeded accounts, read-only), `newUserApi` / `registerUser()` (anything that mutates per-user state), `tempProduct` / `createProduct(input)` (anything that touches global state), `apiWithToken(token)` (crafted tokens). No `let` + `afterEach` cleanup in specs: cleanup belongs to the fixture that created the resource.
 - Tests are isolated and repeatable against a server that is never reset: no order dependence, no `waitForTimeout`, no `if` inside a test, no assertions on absolute shared state. Enforced by `eslint-plugin-playwright` where possible.
 - Credentials from `utils/env` (`env.API_USER_EMAIL`); other data from `data/*.json`. Never string literals for credentials. Enforced by lint.
@@ -27,6 +27,6 @@ import { test, expect } from '@/fixtures/index.fixtures';
 test('should list the orders of a new customer', { tag: ['@smoke'] }, async ({ newUserApi }) => {
   const response = await newUserApi.clients.orders.list();
   expect(response.status()).toBe(200);
-  expect(await response.json()).toEqual([]);
+  expect(await response.data()).toEqual([]);
 });
 ```

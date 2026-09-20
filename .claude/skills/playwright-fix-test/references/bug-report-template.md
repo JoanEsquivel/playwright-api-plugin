@@ -7,7 +7,7 @@ Write to `bug-reports/<yyyy-mm-dd>-<slug>.md` (create the folder if missing) and
 
 **Summary:** <what is wrong, in one sentence>
 
-**Environment:** <BASE_URL or API_BASE_URL>, user/role `<E2E_USERNAME or API role>`, browser <chromium version>, date <yyyy-mm-dd>
+**Environment:** <API_BASE_URL>, role `<anonymous | customer | admin | fresh user>`, API version <from its health endpoint>, date <yyyy-mm-dd>
 
 **Steps to reproduce:**
 1. …
@@ -18,9 +18,9 @@ Write to `bug-reports/<yyyy-mm-dd>-<slug>.md` (create the folder if missing) and
 
 **Actual result:** <what happens; include exact text, status code, payload excerpt>
 
-**Evidence:** `test-results/<dir>/test-failed-1.png`, trace `test-results/<dir>/trace.zip`, playwright-cli snapshot excerpt
+**Evidence:** the `curl` commands with their status and body excerpt; trace `test-results/<dir>/trace.zip` when a test produced one
 
 **Severity:** <blocker | high | medium | low> — <why>
 
-**Automated test:** `<spec path>` › `<test title>` (currently failing / marked fixme)
+**Automated test:** `<spec path>` › `<test title>` (currently failing / marked fixme / none yet)
 ```

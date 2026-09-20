@@ -1,13 +1,14 @@
 import { randomUUID } from 'node:crypto';
-import { test as base, request, type APIRequestContext, type APIResponse } from '@playwright/test';
+import { test as base, request, type APIRequestContext } from '@playwright/test';
 import { AdminProductsClient } from '@/api/clients/admin-products.client';
 import { AuthClient } from '@/api/clients/auth.client';
 import { CartClient } from '@/api/clients/cart.client';
 import { OrdersClient } from '@/api/clients/orders.client';
 import { ProductsClient } from '@/api/clients/products.client';
-import { AuthResponseSchema, type User } from '@/api/schemas/auth.schema';
-import { ProductSchema, type CreateProductInput, type Product } from '@/api/schemas/product.schema';
+import type { User } from '@/api/schemas/auth.schema';
+import type { CreateProductInput, Product } from '@/api/schemas/product.schema';
 import data from '@/data/api.json';
+import { idOf } from '@/api/typed-response';
 import { env } from '@/utils/env';
 
 export interface ApiClients {
@@ -45,10 +46,10 @@ export interface ApiFixtures {
   /** One fresh customer for the test: use it for anything that mutates per-user state. */
   newUserApi: RegisteredUser;
   /**
-   * Creates a catalog product as admin (unique name) and returns the raw response.
+   * Creates a catalog product as admin (unique name) and returns the typed response.
    * Every product it creates is deleted after the test, even when the test fails.
    */
-  createProduct: (input: CreateProductInput) => Promise<APIResponse>;
+  createProduct: (input: CreateProductInput) => ReturnType<AdminProductsClient['create']>;
   /** A throwaway product owned by the test: use it for anything that consumes stock or touches ratings. */
   tempProduct: Product;
 }
@@ -82,7 +83,7 @@ export const apiFixture = base.extend<ApiFixtures, ApiWorkerFixtures>({
         if (!response.ok()) {
           throw new Error(`API login failed for role "${role}": ${response.status()} ${await response.text()}`);
         }
-        return AuthResponseSchema.parse(await response.json()).token;
+        return (await response.data()).token;
       };
 
       await use((role) => {
@@ -133,7 +134,7 @@ export const apiFixture = base.extend<ApiFixtures, ApiWorkerFixtures>({
       if (response.status() !== 201) {
         throw new Error(`User registration failed: ${response.status()} ${await response.text()}`);
       }
-      const { token, user } = AuthResponseSchema.parse(await response.json());
+      const { token, user } = await response.data();
       return { clients: await apiWithToken(token), user };
     });
   },
@@ -148,11 +149,21 @@ export const apiFixture = base.extend<ApiFixtures, ApiWorkerFixtures>({
       const name = `${input.name} ${randomUUID().slice(0, 8)}`;
       const response = await adminApi.adminProducts.create({ ...input, name });
       // Track the id before the caller asserts anything, so a failed assertion cannot leak the product.
-      const created = ProductSchema.pick({ id: true }).safeParse(await response.json());
-      if (created.success) createdIds.push(created.data.id);
+      // Read the id without validating the body: a product whose payload drifted must still be deleted.
+      const id = await idOf(response);
+      if (response.status() === 201 && id) createdIds.push(id);
       return response;
     });
-    await Promise.all(createdIds.map((id) => adminApi.adminProducts.delete(id)));
+
+    const results = await Promise.allSettled(createdIds.map((id) => adminApi.adminProducts.delete(id)));
+    // 404 is fine: the test may have deleted its own product.
+    const leaked = createdIds.filter((_, i) => {
+      const result = results[i];
+      return result.status === 'rejected' || ![204, 404].includes(result.value.status());
+    });
+    if (leaked.length > 0) {
+      throw new Error(`Cleanup failed: these products are still in the catalog: ${leaked.join(', ')}`);
+    }
   },
 
   tempProduct: async ({ createProduct }, use) => {
@@ -160,6 +171,6 @@ export const apiFixture = base.extend<ApiFixtures, ApiWorkerFixtures>({
     if (response.status() !== 201) {
       throw new Error(`Product creation failed: ${response.status()} ${await response.text()}`);
     }
-    await use(ProductSchema.parse(await response.json()));
+    await use(await response.data());
   },
 });

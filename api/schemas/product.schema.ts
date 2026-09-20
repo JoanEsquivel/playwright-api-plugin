@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { pageOf } from './common.schema';
 
 export const ProductSchema = z.object({
   id: z.string().min(1),
@@ -13,6 +14,9 @@ export const ProductSchema = z.object({
   createdAt: z.iso.datetime(),
 });
 export type Product = z.infer<typeof ProductSchema>;
+
+export const ProductPageSchema = pageOf(ProductSchema);
+export type ProductPage = z.infer<typeof ProductPageSchema>;
 
 export interface CreateProductInput {
   name: string;

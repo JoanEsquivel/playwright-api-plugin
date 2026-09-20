@@ -1,18 +1,19 @@
-import type { APIRequestContext, APIResponse } from '@playwright/test';
-import type { CheckoutInput } from '@/api/schemas/order.schema';
+import type { APIRequestContext } from '@playwright/test';
+import { OrderListSchema, OrderSchema, type CheckoutInput } from '@/api/schemas/order.schema';
+import { typed } from '@/api/typed-response';
 
 export class OrdersClient {
   constructor(private readonly request: APIRequestContext) {}
 
-  async create(input: CheckoutInput): Promise<APIResponse> {
-    return this.request.post('orders', { data: input });
+  async create(input: CheckoutInput) {
+    return typed(this.request.post('orders', { data: input }), OrderSchema);
   }
 
-  async list(): Promise<APIResponse> {
-    return this.request.get('orders');
+  async list() {
+    return typed(this.request.get('orders'), OrderListSchema);
   }
 
-  async getById(id: string): Promise<APIResponse> {
-    return this.request.get(`orders/${id}`);
+  async getById(id: string) {
+    return typed(this.request.get(`orders/${id}`), OrderSchema);
   }
 }

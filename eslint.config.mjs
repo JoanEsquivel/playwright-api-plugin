@@ -6,6 +6,18 @@ import tseslint from 'typescript-eslint';
 const SPEC_FILES = ['tests/**/*.ts'];
 const ACTION_LAYERS = ['api/**/*.ts'];
 
+/** Every way of reading a body that skips the contract declared in the client. */
+const UNTYPED_BODY = [
+  {
+    selector: "CallExpression[callee.property.name='json'][arguments.length=0], CallExpression[callee.computed=true][callee.property.value='json']",
+    message: 'response.json() is untyped (any). Use response.data() for the typed, validated body or response.error() for the error envelope.',
+  },
+  {
+    selector: "CallExpression[callee.object.name='JSON'][callee.property.name='parse']",
+    message: 'Do not parse response bodies by hand. Use response.data() or response.error().',
+  },
+];
+
 const NO_LEADING_SLASH_PATH = {
   selector: "CallExpression[callee.property.name=/^(get|post|put|patch|delete|head|fetch)$/] > :matches(Literal[value=/^\\u002F/], TemplateLiteral[quasis.0.value.raw=/^\\u002F/]):first-child",
   message: "Request paths must not start with '/': a leading slash drops the API_BASE_URL path prefix (/api). Use 'auth/login'.",
@@ -46,7 +58,14 @@ export default defineConfig([
           message: 'Spec files import { test, expect } from the fixtures index, never from @playwright/test.',
           allowTypeImports: true,
         }],
-        patterns: [NO_PARENT_IMPORTS],
+        patterns: [
+          NO_PARENT_IMPORTS,
+          {
+            group: ['@/api/schemas/*'],
+            allowTypeImports: true,
+            message: 'Specs do not validate by hand: the client binds the schema and response.data() returns the typed body. Import types only.',
+          },
+        ],
       }],
       'no-restricted-syntax': ['error',
         {
@@ -57,6 +76,7 @@ export default defineConfig([
           selector: "CallExpression[callee.property.name=/^(login|register)$/] > ObjectExpression > Property > Literal[value=/.+/]",
           message: 'Never hard-code credentials. Read them from utils/env or generate them at runtime.',
         },
+        ...UNTYPED_BODY,
       ],
     },
   },
@@ -76,7 +96,7 @@ export default defineConfig([
       'no-restricted-syntax': ['error',
         {
           selector: "CallExpression[callee.name='expect'], CallExpression[callee.object.name='expect']",
-          message: 'No assertions in API clients or schemas. Return the raw APIResponse and assert in the spec.',
+          message: 'No assertions in API clients or schemas. Return typed(request, Schema) and assert in the spec.',
         },
         NO_LEADING_SLASH_PATH,
       ],
@@ -84,5 +104,5 @@ export default defineConfig([
   },
 
   // ---- Fixtures also send requests: same prefix-safe paths ----
-  { files: ['fixtures/**/*.ts'], rules: { 'no-restricted-syntax': ['error', NO_LEADING_SLASH_PATH] } },
+  { files: ['fixtures/**/*.ts'], rules: { 'no-restricted-syntax': ['error', NO_LEADING_SLASH_PATH, ...UNTYPED_BODY] } },
 ]);

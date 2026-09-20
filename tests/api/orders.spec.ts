@@ -1,7 +1,4 @@
 import { test, expect } from '@/fixtures/index.fixtures';
-import { CartSchema } from '@/api/schemas/cart.schema';
-import { ErrorResponseSchema } from '@/api/schemas/common.schema';
-import { OrderSchema } from '@/api/schemas/order.schema';
 import data from '@/data/api.json';
 
 const QTY = 2;
@@ -21,19 +18,15 @@ test.describe('Orders API', { tag: ['@api'] }, () => {
     });
 
     expect(cartResponse.status()).toBe(201);
-    const cartBody: unknown = await cartResponse.json();
-    expect(cartBody).toMatchSchema(CartSchema);
-    const cart = CartSchema.parse(cartBody);
+    const cart = await cartResponse.data();
 
     const response = await test.step('check out with an approved card', async () => {
       return clients.orders.create(checkoutWith(data.cards.approved));
     });
 
     expect(response.status()).toBe(201);
-    const body: unknown = await response.json();
-    expect(body).toMatchSchema(OrderSchema);
+    const order = await response.data();
 
-    const order = OrderSchema.parse(body);
     expect(order.status).toBe('paid');
     expect(order.userId).toBe(user.id);
     expect(order.orderNumber).toMatch(new RegExp(data.orders.numberPattern));
@@ -44,6 +37,8 @@ test.describe('Orders API', { tag: ['@api'] }, () => {
     expect(order.items[0].unitPrice).toBe(tempProduct.price);
     expect(subtotal).toBe(toCents(tempProduct.price * QTY));
     expect(discount).toBe(0);
+    // Flat shipping applies below the free-shipping threshold; newProduct.price × QTY must stay under it.
+    expect(subtotal).toBeLessThan(data.pricing.freeShippingThreshold);
     expect(shipping).toBe(data.pricing.shippingFlat);
     expect(tax).toBe(toCents(subtotal * data.pricing.taxRate));
     expect(total).toBe(toCents(subtotal + shipping + tax));
@@ -51,7 +46,7 @@ test.describe('Orders API', { tag: ['@api'] }, () => {
     await test.step('checkout empties the cart', async () => {
       const after = await clients.cart.get();
       expect(after.status()).toBe(200);
-      expect(CartSchema.parse(await after.json()).items).toEqual([]);
+      expect((await after.data()).items).toEqual([]);
     });
   });
 
@@ -62,21 +57,26 @@ test.describe('Orders API', { tag: ['@api'] }, () => {
 
     const response = await clients.orders.create(checkoutWith(data.cards.declined));
     expect(response.status()).toBe(400);
-    const body: unknown = await response.json();
-    expect(body).toMatchSchema(ErrorResponseSchema);
-    expect(ErrorResponseSchema.parse(body).error.code).toBe('PAYMENT_DECLINED');
+    const { error } = await response.error();
+    expect(error.code).toBe('PAYMENT_DECLINED');
 
     const orders = await clients.orders.list();
     expect(orders.status()).toBe(200);
-    expect(await orders.json()).toEqual([]);
+    expect(await orders.data()).toEqual([]);
   });
 
   test('should reject checkout of an empty cart with 400', { tag: ['@regression'] }, async ({ newUserApi }) => {
     const response = await newUserApi.clients.orders.create(checkoutWith(data.cards.approved));
     expect(response.status()).toBe(400);
-    const body: unknown = await response.json();
-    expect(body).toMatchSchema(ErrorResponseSchema);
-    expect(ErrorResponseSchema.parse(body).error.code).toBe('EMPTY_CART');
+    const { error } = await response.error();
+    expect(error.code).toBe('EMPTY_CART');
+  });
+
+  test('should return 404 for an unknown order', { tag: ['@regression'] }, async ({ newUserApi }) => {
+    const response = await newUserApi.clients.orders.getById(data.orders.missingId);
+    expect(response.status()).toBe(404);
+    const { error } = await response.error();
+    expect(error.code).toBe('NOT_FOUND');
   });
 
   test('should hide an order from other customers with 404', { tag: ['@regression'] }, async ({ newUserApi, registerUser, tempProduct }) => {
@@ -85,16 +85,16 @@ test.describe('Orders API', { tag: ['@api'] }, () => {
     expect(cartResponse.status()).toBe(201);
     const created = await owner.orders.create(checkoutWith(data.cards.approved));
     expect(created.status()).toBe(201);
-    const { id } = OrderSchema.parse(await created.json());
+    const { id } = await created.data();
 
     const stranger = await registerUser();
     const response = await stranger.clients.orders.getById(id);
     expect(response.status()).toBe(404);
-    const body: unknown = await response.json();
-    expect(body).toMatchSchema(ErrorResponseSchema);
-    expect(ErrorResponseSchema.parse(body).error.code).toBe('NOT_FOUND');
+    const { error } = await response.error();
+    expect(error.code).toBe('NOT_FOUND');
 
     const ownView = await owner.orders.getById(id);
     expect(ownView.status()).toBe(200);
+    expect((await ownView.data()).id).toBe(id);
   });
 });

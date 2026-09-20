@@ -26,18 +26,18 @@
 
 ## Secrets and variables checklist
 
-- Secrets: `E2E_USERNAME`, `E2E_PASSWORD`, `API_USERNAME`, `API_PASSWORD`
-- Variables (optional, default to the values in the workflow): `BASE_URL`, `API_BASE_URL`
+- Secrets: `API_USER_EMAIL`, `API_USER_PASSWORD`, `API_ADMIN_EMAIL`, `API_ADMIN_PASSWORD`
+- Variables (optional, default to the values in the workflow): `API_BASE_URL`, `API_SERVER_COMMAND`, `API_SERVER_CWD`, `API_SERVER_READY_URL`, `API_SERVER_REPOSITORY`
 - Never echo secrets; never commit `.env`
 
 ## Speed levers, in order
 
-1. Install only the needed browser (`chromium`) and cache by Playwright version.
+1. No browsers: the setup action installs none unless a job asks for them.
 2. `@smoke` on PRs.
 3. Parallel workers (default) → sharding when > ~10 min.
-4. Reuse auth via the setup project (one login per run, not per test).
-5. Seed data through the API instead of the UI.
-6. `trace: 'on-first-retry'` (not `'on'`), `screenshot: 'only-on-failure'`, no video.
+4. One login per role and worker (`tokenFor`), never per test.
+5. Cache the API's own dependencies (`astral-sh/setup-uv` caches by lockfile).
+6. `trace: 'on-first-retry'` (not `'on'`).
 
 ## Multi-browser matrix (add to any strategy)
 
