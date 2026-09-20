@@ -2,7 +2,7 @@
 
 Plan and step-by-step implementation guide for adding [`pw-api-plugin`](https://github.com/sclavijosuero/pw-api-plugin) (v2.1.0, MIT, by Sebastian Clavijo Suero) to this framework, written so it can be followed live on video.
 
-Every step below was built and run in a throwaway copy of this repository on 2026-09-20 (Playwright 1.63, pnpm 10.17, the example API running locally). The repository itself is unchanged: the implementation is yours to do on camera. Section 9 lists what was verified and what was not.
+Every step below was first built and run in a throwaway copy of this repository on 2026-09-20 (Playwright 1.63, pnpm 10.17, the example API running locally), then applied here on the branch `feat/pw-api-plugin`, **one commit per step**. `git log --oneline --reverse main..feat/pw-api-plugin` is the same walkthrough as section 5; `git show <commit>` is the exact diff of a step. To redo it live on camera, start from `main`. Section 9 lists what was verified and what was not.
 
 ## 1. What the plugin does
 
@@ -71,9 +71,9 @@ An inline variable beats `.env` (dotenv never overrides what is already set), so
 |---|---|---|
 | 1 | The problem | `pnpm test`, open the HTML report: green ticks, no idea what was sent or received. Open a test: three steps, no requests |
 | 2 | Install | Step 1 |
-| 3 | Explore the plugin raw | Step 2: the throwaway spec, the report cards, UI mode, and the CSV failure |
+| 3 | Explore the plugin raw | Step 1b: the throwaway spec, the report cards, UI mode, and the CSV failure |
 | 4 | Why not use it like that here | Section 2: the four rules it would break |
-| 5 | Implement | Steps 3 to 8 |
+| 5 | Implement | Steps 2 to 8 |
 | 6 | The payoff | Section 6: the same suite with `off`, `report`, `ui`; `git diff --stat tests/` is empty |
 | 7 | Honest limits | Section 8 |
 
@@ -89,9 +89,24 @@ The example API must be reachable (`API_SERVER_*` in `.env` starts it when it is
 
 `ui` mode needs Chromium. This machine already has it; on a clean one run `pnpm exec playwright install chromium`.
 
-Steps 7 and the optional CI note touch `eslint.config.mjs` and `.github/`. `CLAUDE.md` asks for plan mode before changing those when an agent does the work.
+Step 6 changes `eslint.config.mjs`. `CLAUDE.md` asks for plan mode before changing that file when an agent does the work. `playwright.config.ts` and `.github/` are not touched.
 
 ## 5. Step by step
+
+Each step is one commit on `feat/pw-api-plugin`; the commit message carries the same step number.
+
+| Step | Commit subject |
+|---|---|
+| 0 | `docs: plan for pw-api-plugin behind an API_LOG switch` (this file) |
+| 1 | `chore: install pw-api-plugin` |
+| 1b | no commit: throwaway exploration |
+| 2 | `feat(env): API_LOG switch (off, report, ui)` |
+| 3 | `feat(api): withApiLog wraps a request context with pw-api-plugin` |
+| 4 | `refactor(api): clients depend on ApiRequest, not APIRequestContext` |
+| 5 | `feat(fixtures): route api and apiWithToken through withApiLog` |
+| 6 | `chore(lint): only api/api-log.ts may import pw-api-plugin` |
+| 7 | `chore: test:log and test:ui scripts` |
+| 8 | `docs: API_LOG and api-log.ts in the contract, rules, skills and decision log` |
 
 ### Step 1. Install
 
@@ -101,7 +116,7 @@ corepack pnpm add -D pw-api-plugin
 
 It brings `axios` and `highlight.js` with it. It does not declare `@playwright/test` as a peer dependency; it resolves this project's copy through pnpm's default hoisting, which worked here without any extra setting.
 
-### Step 2. Explore it raw (throwaway)
+### Step 1b. Explore it raw (throwaway, no commit)
 
 Create `tests/api/explore-plugin.spec.ts`. It uses the plugin exactly as its README does, so it **breaks this repository's lint rules on purpose**. Do not commit it.
 
@@ -149,7 +164,7 @@ That is the limitation from section 1 shown live. Then delete the file:
 rm tests/api/explore-plugin.spec.ts
 ```
 
-### Step 3. The switch in `utils/env.ts`
+### Step 2. The switch in `utils/env.ts`
 
 Above `export const env`:
 
@@ -175,7 +190,14 @@ Inside `env`, after `API_SERVER_READY_URL`:
 
 `find` narrows the string to the union without a cast.
 
-### Step 4. The one file that knows the plugin: `api/api-log.ts`
+`.env.example`, in the optional block:
+
+```bash
+# API_LOG=off                        # off | report | ui : request/response cards from pw-api-plugin (ui starts a browser)
+# COLOR_SCHEME=light                 # light | dark | accessible : theme of those cards
+```
+
+### Step 3. The one file that knows the plugin: `api/api-log.ts`
 
 ```ts
 import type { APIRequestContext, Page } from '@playwright/test';
@@ -213,7 +235,7 @@ export function withApiLog(request: APIRequestContext, page?: Page): ApiRequest 
 
 The parameters of each arrow function are typed by `ApiRequest`, so `url` and `options` need no annotation.
 
-### Step 5. Clients: one type, five files
+### Step 4. Clients: one type, five files
 
 In every `api/clients/*.client.ts` the constructor takes `ApiRequest` instead of `APIRequestContext`. Nothing else in the class changes.
 
@@ -233,7 +255,7 @@ import type { APIResponse } from '@playwright/test';
 import type { ApiRequest } from '@/api/api-log';
 ```
 
-### Step 6. Fixtures: `fixtures/api.fixtures.ts`
+### Step 5. Fixtures: `fixtures/api.fixtures.ts`
 
 ```diff
 -import { test as base, request, type APIRequestContext } from '@playwright/test';
@@ -258,6 +280,7 @@ import type { ApiRequest } from '@/api/api-log';
  export const apiFixture = base.extend<ApiFixtures, ApiWorkerFixtures>({
 -  api: async ({ request }, use) => {
 -    await use(createClients(request));
++  // Playwright starts what a fixture destructures, so the browser only exists when the `page` variant is picked.
 +  apiLogPage:
 +    env.API_LOG === 'ui'
 +      ? async ({ page }, use) => {
@@ -281,7 +304,14 @@ import type { ApiRequest } from '@/api/api-log';
 +      return createClients(withApiLog(context, apiLogPage));
 ```
 
-Leave `tokenFor` exactly as it is (decision 2 in section 2). `authedApi`, `adminApi`, `registerUser`, `newUserApi`, `createProduct` and `tempProduct` are built on `api` and `apiWithToken`, so they are logged without being touched, cleanup requests included.
+Leave `tokenFor` on its plain context (decision 2 in section 2); the only change there is a comment that says why:
+
+```diff
++  // Never logged: worker scope has no page, and these are the seeded credentials, which must not reach a report.
+   tokenFor: [
+```
+
+ `authedApi`, `adminApi`, `registerUser`, `newUserApi`, `createProduct` and `tempProduct` are built on `api` and `apiWithToken`, so they are logged without being touched, cleanup requests included.
 
 Checkpoint:
 
@@ -290,7 +320,7 @@ pnpm lint && pnpm test                 # clean, 14 passed: off is still the defa
 API_LOG=report pnpm test               # 14 passed
 ```
 
-### Step 7. Lint gate: only `api/api-log.ts` imports the plugin
+### Step 6. Lint gate: only `api/api-log.ts` imports the plugin
 
 In `eslint.config.mjs`, above `export default`:
 
@@ -356,7 +386,7 @@ pnpm exec eslint tests/api/zz.spec.ts    # error: Only api/api-log.ts imports pw
 rm tests/api/zz.spec.ts
 ```
 
-### Step 8. Scripts, `.env.example`, docs
+### Step 7. Scripts
 
 `package.json`:
 
@@ -367,12 +397,7 @@ rm tests/api/zz.spec.ts
 
 The inline `VAR=value` form is for macOS and Linux shells. On Windows set `API_LOG` in `.env` or add `cross-env`.
 
-`.env.example`, in the optional block:
-
-```bash
-# API_LOG=off                        # off | report | ui : request/response cards from pw-api-plugin (ui starts a browser)
-# COLOR_SCHEME=light                 # light | dark | accessible : theme of those cards
-```
+### Step 8. Docs
 
 Keep the kit in sync with the code (rule 9 and the definition of done):
 
@@ -381,7 +406,8 @@ Keep the kit in sync with the code (rule 9 and the definition of done):
 | `AGENTS.md` | Parameters table: `API_LOG` row. Layout: `api-log.ts` next to `typed-response.ts`. Commands: `pnpm test:log`, `pnpm test:ui` |
 | `docs/decisions.md` | Decision 19, text below |
 | `.claude/rules/api.md`, `.claude/rules/fixtures.md` | Clients take `ApiRequest`; contexts are wrapped with `withApiLog()` in fixtures; only `api/api-log.ts` imports the plugin. Then `pnpm sync:agents` |
-| `.claude/skills/playwright-architecture/SKILL.md` and `references/api-layer.md` | Layout line for `api/api-log.ts`; client template constructor type |
+| `.claude/skills/playwright-architecture/SKILL.md` and `references/api-layer.md` | Layout line for `api/api-log.ts`; client template constructor type; a section on the cards |
+| `.claude/skills/playwright-create-test/references/api-flow.md` | Client constructor type |
 | `docs/agent-guide.md` | Troubleshooting rows from section 8 |
 
 Decision 19, ready to paste:
@@ -453,6 +479,6 @@ Isolation still holds with logging on: `API_LOG=report pnpm exec playwright test
 
 ## 9. What was verified, and what was not
 
-Verified in the throwaway copy: `pnpm lint` clean (ESLint and `tsc`); 14/14 in each mode; 70/70 with `--repeat-each 5 --workers 4` in `report` mode; 0 attachments with `off` and 37 with `report` (read from the JSON reporter); six `setContent` calls and six `PW Api Call` steps inside the trace of the paid-order test in `ui` mode; the invalid-value error; the lint gate firing in `tests/`, `api/clients/` and `fixtures/`; the raw exploration spec, including the CSV failure.
+Verified, first in the throwaway copy and again on this branch before each commit: `pnpm lint` clean (ESLint and `tsc`); 14/14 in each mode; 70/70 with `--repeat-each 5 --workers 4` in `report` mode; 0 attachments with `off` and 37 with `report` (read from the JSON reporter); six `setContent` calls and six `PW Api Call` steps inside the trace of the paid-order test in `ui` mode; the invalid-value error; the lint gate firing in `tests/`, `api/clients/` and `fixtures/`; the raw exploration spec, including the CSV failure.
 
-Not verified: UI mode was not opened interactively (the trace proves the cards are drawn on the page, which is what UI mode displays); the `dark` and `accessible` themes were not looked at; the two new `package.json` scripts were not run as scripts (their commands were); nothing was run on Windows; the GitHub Actions workflows are untouched and still unexecuted.
+Not verified: UI mode was not opened interactively (the trace proves the cards are drawn on the page, which is what UI mode displays); the `dark` and `accessible` themes were not looked at; `pnpm test:log` was run (14 passed) but `pnpm test:ui` was not, because it opens the interactive UI; nothing was run on Windows; the GitHub Actions workflows are untouched and still unexecuted.

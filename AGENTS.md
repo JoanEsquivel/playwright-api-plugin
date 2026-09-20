@@ -13,6 +13,7 @@ This repository is a **Playwright API test framework built on a fixed set of sta
 | `API_SERVER_CWD` | Optional. Directory the command runs in | `../the-test-automation-website/backend` |
 | `API_SERVER_READY_URL` | Optional. URL polled until the API is up | `http://localhost:8000/api/health` |
 | `WORKERS` | Optional worker count (`1` = serial) | unset |
+| `API_LOG` | Optional. Request/response cards from `pw-api-plugin`: `off` (default), `report` (attached to the HTML report), `ui` (also drawn in UI mode and traces; starts a browser) | unset |
 
 Never hard-code these values in code, skills or docs. Read them via `utils/env.ts` (`env.API_BASE_URL`, …). If a task needs a value that is missing, ask for it once, then write it to `.env`/`.env.example`.
 
@@ -21,6 +22,7 @@ Never hard-code these values in code, skills or docs. Read them via `utils/env.t
 ```bash
 corepack pnpm install                     # no browsers to install
 pnpm test            # the whole API suite     pnpm test:api | test:smoke
+pnpm test:log        # same suite with API_LOG=report     pnpm test:ui (API_LOG=ui, opens UI mode)
 pnpm lint            # eslint + tsc (blocking gate)     pnpm lint:fix
 pnpm exec playwright test tests/api/<resource>.spec.ts --repeat-each 5 --workers 4   # isolation check
 ```
@@ -30,7 +32,7 @@ With the `API_SERVER_*` variables set, `pnpm test` starts the API when it is dow
 ## Layout
 
 ```
-api/         clients/*.client.ts (one class per resource; each method binds its response schema) · schemas/*.schema.ts (zod + input types) · typed-response.ts
+api/         clients/*.client.ts (one class per resource; each method binds its response schema) · schemas/*.schema.ts (zod + input types) · typed-response.ts · api-log.ts (optional request/response cards)
 fixtures/    api.fixtures.ts (clients, authentication, throwaway data) · index.fixtures.ts (mergeTests; only import source for specs)
 utils/       env.ts (typed env access)
 tests/       api/*.spec.ts
@@ -62,6 +64,10 @@ bug-reports/ API defects found while testing (never patched over in a test)
 | mutates per-user state (cart, orders, profile) | `newUserApi`; a second actor from `registerUser()` |
 | consumes or changes global state (stock, ratings, catalog) | `tempProduct`, or `createProduct(input)` when the create response is what you assert. Both delete what they created |
 | sends a crafted or invalid token | `apiWithToken(token)` |
+
+## Seeing what was sent and received (`API_LOG`)
+
+`api/api-log.ts` is the only file that imports `pw-api-plugin` (enforced by lint). Fixtures wrap each request context with `withApiLog(context, apiLogPage)`; clients are typed against `ApiRequest` and never know whether they are logged. With `API_LOG` unset or `off` the context is returned untouched and the plugin never runs. `tokenFor` logins are never logged, so seeded credentials stay out of reports. Cards show request and response bodies verbatim, and the plugin parses every non-empty body as JSON: keep `API_LOG` off in CI, and give a client for a non-JSON endpoint the unwrapped context. Guide: `docs/pw-api-plugin-guide.md`.
 
 Tags: `@api` on the describe; `@smoke` (runs on every PR) or `@regression` (full runs) on each test.
 

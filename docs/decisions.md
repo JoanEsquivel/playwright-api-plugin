@@ -92,6 +92,11 @@ Short records of the choices behind this framework and kit. Newest last. The kit
 **Why:** `response.json()` is `any`. The old pattern was safe but cost three lines per response, made every spec import and choose the schema of every endpoint, and read as if types were missing. Binding the schema where the endpoint is defined makes the type follow the contract automatically, in specs and fixtures alike, and a schema change breaks `tsc` everywhere the field is used.
 **Consequences:** Clients still never assert and never look at the status; nothing is validated until a spec or fixture asks, so one method serves positive and negative tests. A contract mismatch surfaces as an `Error` with URL, status and zod path instead of a matcher diff. `api/typed-response.ts` is the only file with `response.json()` and `unknown`; lint rejects `.json()` in `tests/**`. Endpoints without a body return the plain `APIResponse`.
 
+## 19. Request/response cards are optional and live under the clients
+**Decision:** `pw-api-plugin` is wired in `api/api-log.ts` only. `withApiLog(context, page?)` wraps a request context when `API_LOG` is `report` or `ui` and returns it untouched when `off` (default). Clients are typed against `ApiRequest`, a `Pick` of `APIRequestContext`.
+**Why:** Seeing what was sent and received shortens every diagnosis, but the plugin's documented usage (in specs, with its own `test` and a `page`) breaks rules 1 to 3 and needs a browser. Under the clients, no spec changes and no browser starts unless `ui` is asked for.
+**Consequences:** `tokenFor` logins are never logged, so seeded credentials stay out of reports. Cards show request and response bodies verbatim: `API_LOG` stays `off` in CI unless the target uses throwaway credentials. The plugin parses every non-empty body as JSON: a client for a non-JSON endpoint must receive the unwrapped context. Lint allows the import only in `api/api-log.ts`. One deliberate exception to "only `utils/env.ts` touches `process.env`": `api/api-log.ts` writes the plugin's own `LOG_API_UI` / `LOG_API_REPORT`, derived from `env.API_LOG`. Step-by-step record: `docs/pw-api-plugin-guide.md` and the commits on `feat/pw-api-plugin`.
+
 ## Appendix — tool compatibility matrix
 
 | Artifact | Claude Code | GitHub Copilot (VS Code / CLI / cloud) | Cursor |

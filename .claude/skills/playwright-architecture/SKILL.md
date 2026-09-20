@@ -13,8 +13,9 @@ Language: TypeScript. Runtime values (`API_BASE_URL`, credentials per role, `API
 api/clients/<res>.client.ts  One class per resource; each method returns typed(request, Schema). No assertions.
 api/schemas/<res>.schema.ts  zod schemas + inferred types + request input types. common.schema.ts: error envelope, pageOf().
 api/typed-response.ts        typed(): APIResponse + data() / error(). The only place that touches response.json().
+api/api-log.ts               ApiRequest type + withApiLog(): optional pw-api-plugin cards behind API_LOG. The only importer of the plugin.
 utils/env.ts                 Lazy typed getters over process.env (only place that reads it).
-fixtures/api.fixtures.ts     api, tokenFor(role) [worker], apiWithToken, authedApi, adminApi, registerUser, newUserApi, createProduct, tempProduct
+fixtures/api.fixtures.ts     apiLogPage, api, tokenFor(role) [worker], apiWithToken, authedApi, adminApi, registerUser, newUserApi, createProduct, tempProduct
 fixtures/index.fixtures.ts   mergeTests(...) + expect  ← only spec import
 tests/api/<res>.spec.ts      specs, one file per resource
 data/*.json                  test data, never credentials
@@ -62,6 +63,7 @@ test('should place a paid order from the cart', { tag: ['@smoke'] }, async ({ ne
 | `api/clients/*.ts` | one method per endpoint, `typed(request, Schema)` | `expect`, status checks, hosts, leading-slash paths, auth headers |
 | `api/schemas/*.ts` | zod schemas, inferred types, input types | requests |
 | `api/typed-response.ts` | `data()` / `error()` validation | knowledge of any resource |
+| `api/api-log.ts` | `ApiRequest`, `withApiLog()`, the `API_LOG` → plugin switch mapping | knowledge of any resource, `expect` |
 | `fixtures/api.fixtures.ts` | client wiring, tokens per role, fresh users, throwaway resources and their cleanup | `expect`, business assertions |
 | `fixtures/index.fixtures.ts` | `mergeTests`, `expect` | anything else |
 | `tests/**` | `describe`/`step`/`expect`, tags | `@playwright/test` import, `response.json()`, schema imports, `../` imports, literal credentials, `afterEach` cleanup |
@@ -77,6 +79,7 @@ Which fixture for which test, tag policy: `AGENTS.md` ("Choosing a fixture") and
 - `request.get('/orders')` → drops the `/api` prefix and answers 404. No leading slash.
 - `const body: unknown = await response.json()` in a spec → `const order = await response.data()`.
 - A client method returning the bare `this.request.get(…)` for an endpoint that has a body → the spec loses its types. Wrap it in `typed(…, Schema)`.
+- Importing `pw-api-plugin` (or its `test`) in a spec or client to "see the request" → run with `API_LOG=report` or `API_LOG=ui`; only `api/api-log.ts` imports it.
 - Placing an order or editing a profile as `authedApi` → the seeded account changes for every other test and run. Use `newUserApi`.
 - Buying a seeded product "because it has a lot of stock" → it runs out. Use `tempProduct`.
 - `let id` + `afterEach` cleanup in a spec → leaks the resource when an assertion fails first. Put creation and cleanup in a factory fixture.
