@@ -14,6 +14,9 @@ function optionalEnv(name: string): string | undefined {
   return process.env[name] || undefined;
 }
 
+const API_LOG_MODES = ['off', 'report', 'ui'] as const;
+export type ApiLogMode = (typeof API_LOG_MODES)[number];
+
 export const env = {
   /**
    * Always ends with `/` so a path prefix (`/api`, `/api/v2`) survives URL resolution.
@@ -29,4 +32,15 @@ export const env = {
   get API_SERVER_COMMAND(): string | undefined { return optionalEnv('API_SERVER_COMMAND'); },
   get API_SERVER_CWD(): string | undefined { return optionalEnv('API_SERVER_CWD'); },
   get API_SERVER_READY_URL(): string | undefined { return optionalEnv('API_SERVER_READY_URL'); },
+
+  /**
+   * Optional: request/response cards from pw-api-plugin.
+   * `off` (default) plain Playwright · `report` cards attached to the HTML report · `ui` also drawn in UI mode and traces (starts a browser).
+   */
+  get API_LOG(): ApiLogMode {
+    const value = optionalEnv('API_LOG') ?? 'off';
+    const mode = API_LOG_MODES.find((candidate) => candidate === value);
+    if (!mode) throw new Error(`API_LOG must be one of ${API_LOG_MODES.join(', ')}; received "${value}".`);
+    return mode;
+  },
 };
