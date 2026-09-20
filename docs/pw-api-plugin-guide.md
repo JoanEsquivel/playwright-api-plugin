@@ -1,6 +1,6 @@
-# Enhancement plan: request/response cards with `pw-api-plugin`, behind one switch
+# Request/response cards with `pw-api-plugin`, behind one switch: design and step-by-step record
 
-Plan and step-by-step implementation guide for adding [`pw-api-plugin`](https://github.com/sclavijosuero/pw-api-plugin) (v2.1.0, MIT, by Sebastian Clavijo Suero) to this framework, written so it can be followed live on video.
+Design and step-by-step implementation guide for adding [`pw-api-plugin`](https://github.com/sclavijosuero/pw-api-plugin) (v2.1.0, MIT, by Sebastian Clavijo Suero) to this framework, written so it can be followed live on video.
 
 Every step below was first built and run in a throwaway copy of this repository on 2026-09-20 (Playwright 1.63, pnpm 10.17, the example API running locally), then applied here on the branch `feat/pw-api-plugin`, **one commit per step**. `git log --oneline --reverse main..feat/pw-api-plugin` is the same walkthrough as section 5; `git show <commit>` is the exact diff of a step. To redo it live on camera, start from `main`. Section 9 lists what was verified and what was not.
 
@@ -21,9 +21,9 @@ Things the README does not say, found by reading `dist/src/*.js`:
 - Every call is wrapped in a `test.step('PW Api Call - GET - <url>')`, so it only works while a test is running.
 - `LOG_API_UI` and `LOG_API_REPORT` are read on every call. `COLOR_SCHEME` and the plugin's own `test` export are decided once, when the module is imported.
 - The card shows only what was passed in the call's `options`. Headers set on the request context (`extraHTTPHeaders`, where this framework puts the Bearer token) and the `baseURL` are not shown: the card says `orders`, not `http://localhost:8000/api/orders`.
-- When logging is on, the plugin calls `response.json()` on any non-empty body. A CSV, PDF or HTML answer makes **the call itself throw** (section 8).
+- When logging is on, the plugin calls `response.json()` on any non-empty body, after the request was sent. A CSV, PDF or HTML answer makes **the call itself throw** (section 8), even though the server already processed it.
 - Request and response bodies are shown verbatim, passwords and tokens included (section 8).
-- The card's stylesheet comes from `cdnjs.cloudflare.com`. Without internet the card still renders, without syntax colours.
+- The card sets its main colours inline and loads one extra highlight.js stylesheet from `cdnjs.cloudflare.com`. Offline behaviour was not tested.
 
 ## 2. The design
 
@@ -61,8 +61,8 @@ An inline variable beats `.env` (dotenv never overrides what is already set), so
 ### Decisions worth saying out loud in the video
 
 1. **The `page` exists only in `ui` mode.** The `apiLogPage` fixture is chosen when the file loads: in `ui` mode it depends on Playwright's `page`; otherwise it depends on nothing and yields `undefined`. Playwright decides what to start from the parameters a fixture destructures, so `off` and `report` never launch a browser. This is the same trick the plugin's own `test` export uses.
-2. **`tokenFor` logins are never logged.** That fixture is worker-scoped: it has no `page`, and it is the one place where the seeded credentials are sent on every run. It keeps using its own plain context, so those passwords never reach a report.
-3. **One file knows the plugin.** `api/api-log.ts` is the only importer, enforced by lint. Removing the plugin later is: delete that file's body, `pnpm remove pw-api-plugin`.
+2. **`tokenFor` logins are never logged.** That fixture is worker-scoped: it has no `page`, and it sends seeded credentials on every run. It keeps using its own plain context, so those logins (the admin password among them) never reach a report. This does not cover specs: the login test sends the seeded customer's password through `api`, and that card shows it (section 8).
+3. **One file knows the plugin.** `api/api-log.ts` is the only importer, enforced by lint. Removing the plugin later touches that file and `package.json` (section 7).
 4. **`ApiRequest` is a `Pick` of `APIRequestContext`.** Clients are typed against the six verbs they use, so both the real context and the wrapper satisfy the type with no cast, and the existing "no leading slash" lint rule keeps matching because the method names did not change.
 
 ## 3. Suggested video flow
@@ -80,7 +80,7 @@ An inline variable beats `.env` (dotenv never overrides what is already set), so
 ## 4. Before you start
 
 ```bash
-git switch -c feat/pw-api-plugin
+git switch -c feat/pw-api-plugin     # already exists in this repository: pick another name when redoing it from main
 pnpm test            # 14 passed: the baseline for the comparison
 pnpm lint            # clean
 ```
@@ -93,7 +93,7 @@ Step 6 changes `eslint.config.mjs`. `CLAUDE.md` asks for plan mode before changi
 
 ## 5. Step by step
 
-Each step is one commit on `feat/pw-api-plugin`; the commit message carries the same step number.
+Each step is one commit on `feat/pw-api-plugin`; for steps 1 to 8 the commit message carries the same step number.
 
 | Step | Commit subject |
 |---|---|
@@ -114,7 +114,7 @@ Each step is one commit on `feat/pw-api-plugin`; the commit message carries the 
 corepack pnpm add -D pw-api-plugin
 ```
 
-It brings `axios` and `highlight.js` with it. It does not declare `@playwright/test` as a peer dependency; it resolves this project's copy through pnpm's default hoisting, which worked here without any extra setting.
+It brings `axios` and `highlight.js` with it. It does not declare `@playwright/test` as a peer dependency; Node resolves this project's copy from the root `node_modules`, an ancestor of the plugin's real path, so no extra setting was needed. It would break only in a package that does not itself depend on `@playwright/test`.
 
 ### Step 1b. Explore it raw (throwaway, no commit)
 
@@ -170,7 +170,7 @@ Above `export const env`:
 
 ```ts
 const API_LOG_MODES = ['off', 'report', 'ui'] as const;
-export type ApiLogMode = (typeof API_LOG_MODES)[number];
+type ApiLogMode = (typeof API_LOG_MODES)[number];
 ```
 
 Inside `env`, after `API_SERVER_READY_URL`:
@@ -307,7 +307,7 @@ import type { ApiRequest } from '@/api/api-log';
 Leave `tokenFor` on its plain context (decision 2 in section 2); the only change there is a comment that says why:
 
 ```diff
-+  // Never logged: worker scope has no page, and these are the seeded credentials, which must not reach a report.
++  // Never logged: worker scope has no page, and these logins send seeded credentials on every run.
    tokenFor: [
 ```
 
@@ -371,7 +371,7 @@ Specs block:
 New last block, after the `fixtures/**` one:
 
 ```js
-  // ---- The one file allowed to import pw-api-plugin ----
+  // ---- The one file allowed to import pw-api-plugin (same rule as api/**, minus that path) ----
   {
     files: ['api/api-log.ts'],
     rules: { '@typescript-eslint/no-restricted-imports': ['error', { paths: [NO_EXPECT_IN_API], patterns: [NO_PARENT_IMPORTS] }] },
@@ -403,10 +403,12 @@ Keep the kit in sync with the code (rule 9 and the definition of done):
 
 | File | Change |
 |---|---|
-| `AGENTS.md` | Parameters table: `API_LOG` row. Layout: `api-log.ts` next to `typed-response.ts`. Commands: `pnpm test:log`, `pnpm test:ui` |
+| `AGENTS.md` | Parameters table: `API_LOG` row. Layout: `api-log.ts` next to `typed-response.ts`. Commands: `pnpm test:log`, `pnpm test:ui`. New section "Seeing what was sent and received", after the Tags line |
 | `docs/decisions.md` | Decision 19, text below |
 | `.claude/rules/api.md`, `.claude/rules/fixtures.md` | Clients take `ApiRequest`; contexts are wrapped with `withApiLog()` in fixtures; only `api/api-log.ts` imports the plugin. Then `pnpm sync:agents` |
-| `.claude/skills/playwright-architecture/SKILL.md` and `references/api-layer.md` | Layout line for `api/api-log.ts`; client template constructor type; a section on the cards |
+| `.claude/skills/playwright-architecture/SKILL.md` and `references/api-layer.md` | Layout line for `api/api-log.ts`; a row in the file-responsibilities table; a common-mistake bullet; client template constructor type; a section on the cards |
+| `.claude/skills/playwright-fix-test/SKILL.md` | `pnpm test:log <spec>` in the evidence list |
+| This guide | Intro and the step-to-commit table |
 | `.claude/skills/playwright-create-test/references/api-flow.md` | Client constructor type |
 | `docs/agent-guide.md` | Troubleshooting rows from section 8 |
 
@@ -415,8 +417,8 @@ Decision 19, ready to paste:
 ```md
 ## 19. Request/response cards are optional and live under the clients
 **Decision:** `pw-api-plugin` is wired in `api/api-log.ts` only. `withApiLog(context, page?)` wraps a request context when `API_LOG` is `report` or `ui` and returns it untouched when `off` (default). Clients are typed against `ApiRequest`, a `Pick` of `APIRequestContext`.
-**Why:** Seeing what was sent and received shortens every diagnosis, but the plugin's documented usage (in specs, with its own `test` and a `page`) breaks rules 1 to 3 and needs a browser. Under the clients, no spec changes and no browser starts unless `ui` is asked for.
-**Consequences:** `tokenFor` logins are never logged, so seeded credentials stay out of reports. Cards show request and response bodies verbatim: `API_LOG` stays `off` in CI unless the target uses throwaway credentials. The plugin parses every non-empty body as JSON: a client for a non-JSON endpoint must receive the unwrapped context. Lint allows the import only in `api/api-log.ts`.
+**Why:** Seeing what was sent and received shortens every diagnosis, but the plugin's documented usage (in specs, with its own `test` and a `page`) breaks rules 2 and 3 and needs a browser. Under the clients, no spec changes and no browser starts unless `ui` is asked for.
+**Consequences:** `tokenFor` logins are never logged, so the admin password never reaches a report. The login test in `tests/api/auth.spec.ts` sends the seeded customer's password through the logged `api` fixture: with `API_LOG` on, that password and the returned token are in its card. Cards show request and response bodies verbatim, so `API_LOG` stays `off` in CI. The plugin parses every non-empty body as JSON: a client for a non-JSON endpoint must receive the unwrapped context. Lint allows the import only in `api/api-log.ts`. One deliberate exception to "only `utils/env.ts` touches `process.env`": `api/api-log.ts` writes the plugin's own `LOG_API_UI` / `LOG_API_REPORT`, derived from `env.API_LOG`. Step-by-step record: `docs/pw-api-plugin-guide.md` and the commits on `feat/pw-api-plugin`.
 ```
 
 ## 6. Demo script: the difference
@@ -448,10 +450,11 @@ What was measured on this machine, full suite, 14 tests:
 | Result | 14 passed | 14 passed | 14 passed |
 | Wall time | 1.1 s | 0.9 s | 2.4 s |
 | Attachments across the run | 0 | 37 | 37 |
-| Steps across the run | 3 | 25 | 25 |
+| Steps across the run (JSON reporter) | 3 | 28 | 28 |
+| of which `PW Api Call` steps | 0 | 25 | 25 |
 | Browser started | no | no | yes |
 
-The gap between `off` and `report` is run-to-run noise on a suite this small; the cost that matters is the browser in `ui`.
+There are 37 cards against 25 plugin steps because 12 requests run in fixture setup or teardown, and the JSON reporter does not list those steps. The gap between `off` and `report` is run-to-run noise on a suite this small; the cost that matters is the browser in `ui`.
 
 Good test to open on camera: **"should place a paid order from the cart"**. With logging on it shows six calls in order: `POST auth/register`, `POST admin/products`, `POST cart/items`, `POST orders`, `GET cart`, and the `DELETE admin/products/<id>` sent by the `tempProduct` cleanup after the test body ends. That last one is a nice moment: the fixture's teardown is visible for the first time.
 
@@ -461,24 +464,24 @@ Isolation still holds with logging on: `API_LOG=report pnpm exec playwright test
 
 ## 7. Turning it off, and removing it
 
-- Off: unset `API_LOG` or set it to `off`. Nothing from the plugin runs.
+- Off: unset `API_LOG` or set it to `off`. No request goes through the plugin. Its module is still imported by `api/api-log.ts` (about a quarter of a second per worker).
 - Remove: make `withApiLog()` return `request` unconditionally and drop the `pwApi` import and the two `process.env` lines, then `pnpm remove pw-api-plugin`. Clients and fixtures keep compiling because `ApiRequest` stays.
 
 ## 8. Limits and gotchas
 
 | What | Detail | What to do |
 |---|---|---|
-| Non-JSON bodies throw | With logging on, the plugin runs `response.json()` on every non-empty body. `GET files/products.csv` fails with `SyntaxError: … is not valid JSON` inside `pwApi.get`. Empty bodies (the 204 from `DELETE admin/products/{id}`) are fine | When a client for `files/*` is added, build it from the unwrapped context in `createClients` (pass both the wrapped and the plain context). Worth an issue or PR upstream |
-| Secrets in cards | Bodies are shown verbatim. `auth.spec.ts` sends the seeded customer's password to `auth/login`, and the answer contains a JWT: both appear in the card. `tokenFor` logins do not (they are not logged) | Keep `API_LOG=off` in CI (it is the default, and no workflow sets it). Turn it on only where credentials are throwaway. The plugin has no redaction option |
+| Non-JSON bodies throw | With logging on, the plugin runs `response.json()` on every non-empty body. `GET files/products.csv` fails with `SyntaxError: … is not valid JSON` inside `pwApi.get`. Empty bodies (the 204 from `DELETE admin/products/{id}`) are fine. The throw comes after the request was sent, so a mutating call has already changed the server | When a client for `files/*` is added, build it from the unwrapped context in `createClients` (pass both the wrapped and the plain context). Worth an issue or PR upstream |
+| Secrets in cards | Bodies are shown verbatim. `auth.spec.ts` sends the seeded customer's password to `auth/login`, and the answer contains a JWT: both appear in the card. `tokenFor` logins do not (they are not logged), so the admin password never appears. A local `playwright-report/` from `pnpm test:log` therefore holds the customer password; it is gitignored | Keep `API_LOG=off` in CI (it is the default, and no workflow sets it). Turn it on only where credentials are throwaway. The plugin has no redaction option |
 | Context headers are invisible | The `Authorization` header is set on the context, so the card's Headers tab does not list it. The URL is the relative path | Say it in the video; it is a display limit, the request is correct |
 | Extra steps | Each call adds a `PW Api Call - <VERB> - <url>` step to the report, also in `report` mode | None needed; it reads well next to the spec's own `test.step`s |
 | `ui` starts a browser | One page per test, a `setContent` per call: 2.4 s against 1.1 s here | Use `ui` to debug, `report` for everyday runs |
 | Internet for colours | The card's stylesheet loads from cdnjs | Offline the card is plain but complete |
 | `COLOR_SCHEME` | Read once at import | Set it before the run, not from a fixture |
-| No peer dependency on `@playwright/test` | Resolved through pnpm's default hoisting | If `hoist=false` is ever set, add a `packageExtensions` entry for `pw-api-plugin` |
+| No peer dependency on `@playwright/test` | Resolved from the project's own `node_modules`, because this project depends on `@playwright/test` directly | Nothing here. In a workspace package without that dependency, add it |
 
 ## 9. What was verified, and what was not
 
-Verified, first in the throwaway copy and again on this branch before each commit: `pnpm lint` clean (ESLint and `tsc`); 14/14 in each mode; 70/70 with `--repeat-each 5 --workers 4` in `report` mode; 0 attachments with `off` and 37 with `report` (read from the JSON reporter); six `setContent` calls and six `PW Api Call` steps inside the trace of the paid-order test in `ui` mode; the invalid-value error; the lint gate firing in `tests/`, `api/clients/` and `fixtures/`; the raw exploration spec, including the CSV failure.
+Verified, first in the throwaway copy and again on this branch before each commit: `pnpm lint` clean (ESLint and `tsc`); 14/14 in each mode; 70/70 with `--repeat-each 5 --workers 4` in `report` mode; 0 attachments with `off` and 37 with `report` (read from the JSON reporter); six `setContent` calls and six `PW Api Call` steps inside the trace of the paid-order test in `ui` mode; the invalid-value error; the lint gate firing in `tests/`, `api/clients/`, `fixtures/` and `utils/`; the raw exploration spec, including the CSV failure.
 
 Not verified: UI mode was not opened interactively (the trace proves the cards are drawn on the page, which is what UI mode displays); the `dark` and `accessible` themes were not looked at; `pnpm test:log` was run (14 passed) but `pnpm test:ui` was not, because it opens the interactive UI; nothing was run on Windows; the GitHub Actions workflows are untouched and still unexecuted.

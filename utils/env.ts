@@ -15,7 +15,7 @@ function optionalEnv(name: string): string | undefined {
 }
 
 const API_LOG_MODES = ['off', 'report', 'ui'] as const;
-export type ApiLogMode = (typeof API_LOG_MODES)[number];
+type ApiLogMode = (typeof API_LOG_MODES)[number];
 
 export const env = {
   /**

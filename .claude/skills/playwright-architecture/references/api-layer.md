@@ -128,7 +128,7 @@ Scaling rules:
 `API_LOG=off|report|ui` (default `off`). Fixtures pass every context through `withApiLog(context, apiLogPage)` before `createClients`; clients are typed against `ApiRequest` (the six verbs of `APIRequestContext`) and cannot tell the difference. `off` returns the context itself, so the plugin never runs. `report` attaches one card per request to the HTML report. `ui` also draws each card on a page (UI mode, trace viewer) and is the only mode that starts a browser.
 
 - Only `api/api-log.ts` imports `pw-api-plugin`. Enforced by lint.
-- `tokenFor` is not wrapped: seeded credentials never reach a report. Cards show bodies verbatim, so keep `API_LOG` off in CI.
+- `tokenFor` is not wrapped, so its logins never reach a report. Anything a spec sends through `api` does, the login test's seeded customer password included: cards show bodies verbatim, so keep `API_LOG` off in CI.
 - The plugin parses every non-empty body as JSON. Build a client for a non-JSON endpoint from the unwrapped context.
 - A new fixture that creates its own context wraps it the same way: `createClients(withApiLog(context, apiLogPage))`.
 

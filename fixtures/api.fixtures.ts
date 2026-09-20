@@ -85,7 +85,7 @@ export const apiFixture = base.extend<ApiFixtures, ApiWorkerFixtures>({
     await use(createClients(withApiLog(request, apiLogPage)));
   },
 
-  // Never logged: worker scope has no page, and these are the seeded credentials, which must not reach a report.
+  // Never logged: worker scope has no page, and these logins send seeded credentials on every run.
   tokenFor: [
     async ({}, use) => {
       const context = await request.newContext({ baseURL: env.API_BASE_URL });

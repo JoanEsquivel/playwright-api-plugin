@@ -65,11 +65,11 @@ bug-reports/ API defects found while testing (never patched over in a test)
 | consumes or changes global state (stock, ratings, catalog) | `tempProduct`, or `createProduct(input)` when the create response is what you assert. Both delete what they created |
 | sends a crafted or invalid token | `apiWithToken(token)` |
 
+Tags: `@api` on the describe; `@smoke` (runs on every PR) or `@regression` (full runs) on each test.
+
 ## Seeing what was sent and received (`API_LOG`)
 
-`api/api-log.ts` is the only file that imports `pw-api-plugin` (enforced by lint). Fixtures wrap each request context with `withApiLog(context, apiLogPage)`; clients are typed against `ApiRequest` and never know whether they are logged. With `API_LOG` unset or `off` the context is returned untouched and the plugin never runs. `tokenFor` logins are never logged, so seeded credentials stay out of reports. Cards show request and response bodies verbatim, and the plugin parses every non-empty body as JSON: keep `API_LOG` off in CI, and give a client for a non-JSON endpoint the unwrapped context. Guide: `docs/pw-api-plugin-guide.md`.
-
-Tags: `@api` on the describe; `@smoke` (runs on every PR) or `@regression` (full runs) on each test.
+`api/api-log.ts` is the only file that imports `pw-api-plugin` (enforced by lint). Fixtures wrap each request context with `withApiLog(context, apiLogPage)`; clients are typed against `ApiRequest` and never know whether they are logged. With `API_LOG` unset or `off` the context is returned untouched and the plugin never runs. `tokenFor` logins are never logged, so the admin password never reaches a report. The login test in `tests/api/auth.spec.ts` sends the seeded customer's password through the logged `api` fixture: with `API_LOG` on, that password and the returned token are in its card. Cards show request and response bodies verbatim, and the plugin parses every non-empty body as JSON: keep `API_LOG` off in CI, and give a client for a non-JSON endpoint the unwrapped context. `API_LOG=ui` is the one case that needs a browser (`pnpm exec playwright install chromium`). `COLOR_SCHEME` (`light`, `dark`, `accessible`) is read by the plugin itself at import, so it has no getter in `utils/env.ts`. Guide: `docs/pw-api-plugin-guide.md`.
 
 ## Skills and agent
 

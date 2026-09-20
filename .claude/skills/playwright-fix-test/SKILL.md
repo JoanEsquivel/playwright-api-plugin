@@ -22,6 +22,7 @@ Record: failing test title, error message, the line, and whether it fails every 
 
 - Error text: expected vs received status or value. A contract failure comes from `data()` / `error()` and names the URL, the status and the zod path.
 - A fixture failure (`API login failed for role …`, `User registration failed …`, `Product creation failed …`) means the precondition broke, not the behavior under test.
+- Requests and responses: `pnpm test:log <spec>` (`API_LOG=report`) attaches a card per request to the HTML report, fixture setup and cleanup included. Local only: cards show bodies verbatim.
 - Trace (on retry in CI, or `--trace on` locally): `pnpm exec playwright show-trace test-results/<test-dir>/trace.zip` lists every request with its headers, payload and response.
 
 ## 3. Classify (`references/failure-taxonomy.md`)
