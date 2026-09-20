@@ -1,0 +1,34 @@
+name: Playwright (parallel)
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+env:
+  CI: true
+  BASE_URL: ${{ vars.BASE_URL || '{{BASE_URL}}' }}
+  E2E_USERNAME: ${{ secrets.E2E_USERNAME }}
+  E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+  # @api-start
+  API_BASE_URL: ${{ vars.API_BASE_URL || '{{API_BASE_URL}}' }}
+  API_USERNAME: ${{ secrets.API_USERNAME }}
+  API_PASSWORD: ${{ secrets.API_PASSWORD }}
+  # @api-end
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-playwright
+      - name: Run tests (smoke on PR, full suite otherwise)
+        run: {{PM_EXEC}} playwright test ${{ github.event_name == 'pull_request' && '--grep @smoke' || '' }}
+      - name: Merge blob report to HTML
+        if: ${{ !cancelled() }}
+        run: {{PM_EXEC}} playwright merge-reports --reporter html ./blob-report
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14

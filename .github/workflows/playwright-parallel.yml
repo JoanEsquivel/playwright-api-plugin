@@ -1,0 +1,45 @@
+name: Playwright (parallel)
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+env:
+  CI: true
+  API_BASE_URL: ${{ vars.API_BASE_URL || 'http://localhost:8000/api/' }}
+  API_USER_EMAIL: ${{ secrets.API_USER_EMAIL }}
+  API_USER_PASSWORD: ${{ secrets.API_USER_PASSWORD }}
+  API_ADMIN_EMAIL: ${{ secrets.API_ADMIN_EMAIL }}
+  API_ADMIN_PASSWORD: ${{ secrets.API_ADMIN_PASSWORD }}
+  # Playwright's webServer starts the API under test with these.
+  API_SERVER_COMMAND: ${{ vars.API_SERVER_COMMAND || 'uv run uvicorn app.main:app --port 8000 --log-level warning' }}
+  API_SERVER_CWD: ${{ vars.API_SERVER_CWD || 'app-under-test/backend' }}
+  API_SERVER_READY_URL: ${{ vars.API_SERVER_READY_URL || 'http://localhost:8000/api/health' }}
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check out the API under test
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.API_SERVER_REPOSITORY || 'JoanEsquivel/the-test-automation-website' }}
+          path: app-under-test
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+      - name: Install API dependencies
+        working-directory: ${{ env.API_SERVER_CWD }}
+        run: uv sync
+      - uses: ./.github/actions/setup-playwright
+      - name: Run tests (smoke on PR, full suite otherwise)
+        run: pnpm exec playwright test ${{ github.event_name == 'pull_request' && '--grep @smoke' || '' }}
+      - name: Merge blob report to HTML
+        if: ${{ !cancelled() }}
+        run: pnpm exec playwright merge-reports --reporter html ./blob-report
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14

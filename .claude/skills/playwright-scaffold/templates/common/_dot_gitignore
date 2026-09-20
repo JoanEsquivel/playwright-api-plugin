@@ -1,0 +1,21 @@
+node_modules/
+
+# Environment (secrets)
+.env
+.env.*
+!.env.example
+
+# Playwright output
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+.auth/
+.playwright-cli/
+
+# TypeScript
+*.tsbuildinfo
+
+# Logs / OS
+*-debug.log*
+.DS_Store

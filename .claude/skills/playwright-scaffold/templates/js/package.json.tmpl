@@ -1,0 +1,33 @@
+{
+  "name": "{{PROJECT_NAME}}",
+  "version": "1.0.0",
+  "private": true,{{PACKAGE_MANAGER_FIELD}}
+  "engines": { "node": ">=20.11" },
+  "scripts": {
+    "test": "playwright test",
+    "test:setup": "playwright test --project=setup",
+    "test:ui": "playwright test --project=ui",
+    "test:e2e": "playwright test --project=e2e",
+    // @api-start
+    "test:api": "playwright test --project=api",
+    // @api-end
+    "test:smoke": "playwright test --grep @smoke",
+    "test:headed": "playwright test --headed",
+    "test:debug": "PLAYWRIGHT_HTML_OPEN=never playwright test --debug=cli",
+    "report": "playwright show-report",
+    "report:merge": "playwright merge-reports --reporter html ./blob-report",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "sync:agents": "node scripts/sync-agent-config.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.0",
+    "@playwright/cli": "0.1.19",
+    "@playwright/test": "1.63.0",
+    "@types/node": "^24.0.0",
+    "dotenv": "^17.4.2",
+    "eslint": "^10.10.0",
+    "eslint-plugin-playwright": "^2.11.0",
+    "zod": "^4.5.4"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "playwright-api-plugin",
+  "version": "1.0.0",
+  "private": true,
+  "packageManager": "pnpm@10.17.0",
+  "engines": { "node": ">=20.11" },
+  "scripts": {
+    "test": "playwright test",
+    "test:api": "playwright test --project=api",
+    "test:smoke": "playwright test --grep @smoke",
+    "report": "playwright show-report",
+    "report:merge": "playwright merge-reports --reporter html ./blob-report",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . && tsc --noEmit",
+    "lint:fix": "eslint . --fix",
+    "sync:agents": "node scripts/sync-agent-config.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "^24.0.0",
+    "dotenv": "^17.4.2",
+    "eslint": "^10.10.0",
+    "eslint-plugin-playwright": "^2.11.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.70.0",
+    "zod": "^4.5.4"
+  }
+}

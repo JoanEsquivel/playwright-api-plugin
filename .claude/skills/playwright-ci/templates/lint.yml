@@ -1,0 +1,20 @@
+name: Lint
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: pnpm
+      - run: {{PM_INSTALL_CI}}
+      - run: {{PM_RUN}} lint
+      - name: Generated agent config is up to date
+        run: if [ -f scripts/sync-agent-config.mjs ]; then node scripts/sync-agent-config.mjs --check; fi

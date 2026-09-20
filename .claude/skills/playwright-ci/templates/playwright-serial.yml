@@ -1,0 +1,29 @@
+name: Playwright (serial)
+on:
+  workflow_dispatch:
+env:
+  CI: true
+  BASE_URL: ${{ vars.BASE_URL || '{{BASE_URL}}' }}
+  API_BASE_URL: ${{ vars.API_BASE_URL || '{{API_BASE_URL}}' }}
+  E2E_USERNAME: ${{ secrets.E2E_USERNAME }}
+  E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+  API_USERNAME: ${{ secrets.API_USERNAME }}
+  API_PASSWORD: ${{ secrets.API_PASSWORD }}
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-playwright
+      - name: Run tests with a single worker
+        run: {{PM_EXEC}} playwright test --workers=1
+      - name: Merge blob report to HTML
+        if: ${{ !cancelled() }}
+        run: {{PM_EXEC}} playwright merge-reports --reporter html ./blob-report
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report-serial
+          path: playwright-report/
+          retention-days: 14

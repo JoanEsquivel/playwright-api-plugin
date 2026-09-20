@@ -1,0 +1,36 @@
+name: Setup Playwright
+description: Install {{PM}}, Node, dependencies and cached Playwright browsers
+inputs:
+  browsers:
+    description: Space-separated browsers to install
+    default: chromium
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@v4
+      if: ${{ '{{PM}}' == 'pnpm' }}
+    - uses: actions/setup-node@v4
+      with:
+        node-version: lts/*
+        cache: {{PM}}
+    - name: Install dependencies
+      shell: bash
+      run: {{PM_INSTALL_CI}}
+    - name: Resolve Playwright version
+      id: pw
+      shell: bash
+      run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+    - name: Cache Playwright browsers
+      id: cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: ${{ runner.os }}-playwright-${{ steps.pw.outputs.version }}-${{ inputs.browsers }}
+    - name: Install browsers
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: {{PM_EXEC}} playwright install ${{ inputs.browsers }} --with-deps
+    - name: Install system dependencies only
+      if: steps.cache.outputs.cache-hit == 'true'
+      shell: bash
+      run: {{PM_EXEC}} playwright install-deps ${{ inputs.browsers }}

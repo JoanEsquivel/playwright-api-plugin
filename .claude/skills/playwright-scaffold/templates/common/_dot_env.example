@@ -1,0 +1,15 @@
+# ---- UI under test ----
+BASE_URL={{BASE_URL}}
+E2E_USERNAME=
+E2E_PASSWORD=
+
+# @api-start
+# ---- API under test ----
+API_BASE_URL={{API_BASE_URL}}
+API_USERNAME=
+API_PASSWORD=
+# @api-end
+
+# ---- Optional ----
+# BROWSERS=chromium,firefox,webkit   # extra browser projects: ui-firefox, e2e-webkit, ...
+# WORKERS=1                          # force serial execution locally

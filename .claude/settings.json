@@ -1,0 +1,42 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/scripts/lint-changed.sh\""
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(pnpm lint*)",
+      "Bash(pnpm test*)",
+      "Bash(pnpm sync:agents*)",
+      "Bash(pnpm exec playwright *)",
+      "Bash(pnpm exec playwright-cli *)",
+      "Bash(corepack pnpm lint*)",
+      "Bash(corepack pnpm test*)",
+      "Bash(corepack pnpm exec playwright *)",
+      "Bash(corepack pnpm exec playwright-cli *)",
+      "Bash(npx playwright *)",
+      "Bash(npx playwright-cli *)",
+      "Bash(playwright-cli *)",
+      "Bash(node scripts/*)",
+      "Bash(node .claude/skills/*)",
+      "Bash(curl *)",
+      "Bash(ruby -ryaml *)",
+      "Skill(playwright-architecture)",
+      "Skill(playwright-scaffold)",
+      "Skill(playwright-create-test)",
+      "Skill(playwright-fix-test)",
+      "Skill(playwright-delete-test)",
+      "Skill(playwright-ci)",
+      "Skill(playwright-cli)"
+    ]
+  }
+}

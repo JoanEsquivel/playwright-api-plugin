@@ -1,0 +1,33 @@
+{
+  "auth": {
+    "wrongPassword": "definitely-not-the-password-1",
+    "invalidToken": "not.a.jwt"
+  },
+  "orders": {
+    "missingId": "order-does-not-exist",
+    "numberPattern": "^TAW-\\d{4}-\\d{4,}$"
+  },
+  "pricing": {
+    "shippingFlat": 4.99,
+    "taxRate": 0.08
+  },
+  "cards": {
+    "approved": { "cardNumber": "4111111111111111", "expiry": "12/30", "cvc": "123", "cardHolder": "Playwright Tester" },
+    "declined": { "cardNumber": "4000000000000000", "expiry": "12/30", "cvc": "123", "cardHolder": "Playwright Tester" }
+  },
+  "shippingAddress": {
+    "label": "Home",
+    "fullName": "Playwright Tester",
+    "street": "1 Test Street",
+    "city": "Testville",
+    "zip": "10001",
+    "country": "United States"
+  },
+  "newProduct": {
+    "name": "Playwright Throwaway Product",
+    "description": "Throwaway product created and deleted by the createProduct fixture",
+    "price": 12.5,
+    "category": "accessories",
+    "stock": 25
+  }
+}
