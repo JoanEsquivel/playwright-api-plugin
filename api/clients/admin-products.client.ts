@@ -1,4 +1,5 @@
-import type { APIRequestContext, APIResponse } from '@playwright/test';
+import type { APIResponse } from '@playwright/test';
+import type { ApiRequest } from '@/api/api-log';
 import { ProductPageSchema, ProductSchema, type CreateProductInput } from '@/api/schemas/product.schema';
 import { typed } from '@/api/typed-response';
 
@@ -9,7 +10,7 @@ export interface AdminProductsListParams {
 }
 
 export class AdminProductsClient {
-  constructor(private readonly request: APIRequestContext) {}
+  constructor(private readonly request: ApiRequest) {}
 
   async list(params: AdminProductsListParams = {}) {
     return typed(this.request.get('admin/products', { params: { ...params } }), ProductPageSchema);
