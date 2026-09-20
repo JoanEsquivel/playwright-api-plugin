@@ -29,6 +29,18 @@ const NO_PARENT_IMPORTS = {
   message: "Do not climb directories with '../'. Import across folders through the alias: '@/api/schemas/auth.schema'.",
 };
 
+/** pw-api-plugin stays behind one file, so API_LOG is the only switch and removing the plugin is a one-file change. */
+const PLUGIN_ONLY_IN_API_LOG = {
+  name: 'pw-api-plugin',
+  message: 'Only api/api-log.ts imports pw-api-plugin. Clients and specs get logging through withApiLog() and the API_LOG switch.',
+};
+
+const NO_EXPECT_IN_API = {
+  name: '@playwright/test',
+  importNames: ['expect'],
+  message: 'Assertions live in specs. API clients only send requests.',
+};
+
 export default defineConfig([
   {
     ignores: ['node_modules/**', 'test-results/**', 'playwright-report/**', 'blob-report/**', '.claude/**'],
@@ -41,7 +53,7 @@ export default defineConfig([
   { files: ['**/*.mjs'], ...tseslint.configs.disableTypeChecked },
   {
     files: ['**/*.ts'],
-    rules: { '@typescript-eslint/no-restricted-imports': ['error', { patterns: [NO_PARENT_IMPORTS] }] },
+    rules: { '@typescript-eslint/no-restricted-imports': ['error', { paths: [PLUGIN_ONLY_IN_API_LOG], patterns: [NO_PARENT_IMPORTS] }] },
   },
 
   // ---- Specs: Playwright rules + import/credential gates ----
@@ -57,7 +69,7 @@ export default defineConfig([
           name: '@playwright/test',
           message: 'Spec files import { test, expect } from the fixtures index, never from @playwright/test.',
           allowTypeImports: true,
-        }],
+        }, PLUGIN_ONLY_IN_API_LOG],
         patterns: [
           NO_PARENT_IMPORTS,
           {
@@ -86,11 +98,7 @@ export default defineConfig([
     files: ACTION_LAYERS,
     rules: {
       '@typescript-eslint/no-restricted-imports': ['error', {
-        paths: [{
-          name: '@playwright/test',
-          importNames: ['expect'],
-          message: 'Assertions live in specs. API clients only send requests.',
-        }],
+        paths: [NO_EXPECT_IN_API, PLUGIN_ONLY_IN_API_LOG],
         patterns: [NO_PARENT_IMPORTS],
       }],
       'no-restricted-syntax': ['error',
@@ -105,4 +113,10 @@ export default defineConfig([
 
   // ---- Fixtures also send requests: same prefix-safe paths ----
   { files: ['fixtures/**/*.ts'], rules: { 'no-restricted-syntax': ['error', NO_LEADING_SLASH_PATH, ...UNTYPED_BODY] } },
+
+  // ---- The one file allowed to import pw-api-plugin (same rule as api/**, minus that path) ----
+  {
+    files: ['api/api-log.ts'],
+    rules: { '@typescript-eslint/no-restricted-imports': ['error', { paths: [NO_EXPECT_IN_API], patterns: [NO_PARENT_IMPORTS] }] },
+  },
 ]);

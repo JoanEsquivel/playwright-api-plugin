@@ -3,11 +3,15 @@
   "version": "1.0.0",
   "private": true,
   "packageManager": "pnpm@10.17.0",
-  "engines": { "node": ">=20.11" },
+  "engines": {
+    "node": ">=20.11"
+  },
   "scripts": {
     "test": "playwright test",
     "test:api": "playwright test --project=api",
     "test:smoke": "playwright test --grep @smoke",
+    "test:log": "API_LOG=report playwright test",
+    "test:ui": "API_LOG=ui playwright test --ui",
     "report": "playwright show-report",
     "report:merge": "playwright merge-reports --reporter html ./blob-report",
     "typecheck": "tsc --noEmit",
@@ -21,6 +25,7 @@
     "dotenv": "^17.4.2",
     "eslint": "^10.10.0",
     "eslint-plugin-playwright": "^2.11.0",
+    "pw-api-plugin": "^2.1.0",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.70.0",
     "zod": "^4.5.4"

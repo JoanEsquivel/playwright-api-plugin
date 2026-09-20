@@ -32,7 +32,7 @@ Probing with a real account mutates it. Register a throwaway user for probes tha
 
 ## C. Client (`api/clients/<resource>.client.ts`)
 
-- Class `<Resource>Client` with `constructor(private readonly request: APIRequestContext)`.
+- Class `<Resource>Client` with `constructor(private readonly request: ApiRequest)` (type from `@/api/api-log`).
 - One method per endpoint, typed params, path **without a leading slash**, returns `typed(this.request.<verb>(…), <Schema>)` with the return type inferred. A 204 endpoint returns the plain `APIResponse`. No status checks, no assertions.
 
 ## D. Fixture wiring (`fixtures/api.fixtures.ts`)

@@ -1,9 +1,9 @@
-import type { APIRequestContext } from '@playwright/test';
+import type { ApiRequest } from '@/api/api-log';
 import { OrderListSchema, OrderSchema, type CheckoutInput } from '@/api/schemas/order.schema';
 import { typed } from '@/api/typed-response';
 
 export class OrdersClient {
-  constructor(private readonly request: APIRequestContext) {}
+  constructor(private readonly request: ApiRequest) {}
 
   async create(input: CheckoutInput) {
     return typed(this.request.post('orders', { data: input }), OrderSchema);

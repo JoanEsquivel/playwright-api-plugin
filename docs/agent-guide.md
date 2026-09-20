@@ -136,6 +136,10 @@ Every task ends with: files created or modified (paths), the commands it ran wit
 | Tests pass alone and fail together | Shared state: a test mutates a seeded account or a seeded record. Move it to `newUserApi` or to a resource it creates itself |
 | `API login failed for role "…"` | Wrong credentials in `.env`, or the API was restarted with different seed data |
 | `… answered 200 with a body that does not match the endpoint's response schema` | Contract drift or a schema that was wrong from the start. Read the zod path, `curl` the endpoint, then fix the schema or file a bug |
+| You need to see what a test sent and received | Run it with `API_LOG=report` (cards in the HTML report) or `API_LOG=ui` with `--ui` / `--trace on`. Details: `docs/pw-api-plugin-guide.md` |
+| `SyntaxError: … is not valid JSON` thrown from `pwApi.<verb>` | `API_LOG` is on and the endpoint answered a non-JSON body; `pw-api-plugin` parses every body. Run with `API_LOG=off`, or build that client from the unwrapped context |
+| `API_LOG must be one of off, report, ui` | Typo in `.env` or on the command line |
+| `Executable doesn't exist …` with `API_LOG=ui` | That mode draws on a page: `pnpm exec playwright install chromium` |
 | `Cannot find module '@/…'` | The `paths` entry in `tsconfig.json` is missing, or the path after `@/` is not relative to the repository root |
 | A skill does not show in the `/` menu | Folder name must equal the `name` in `SKILL.md`; in Claude Code run `/reload-plugins` |
 | Copilot or Cursor ignore a rule | Regenerate mirrors with `pnpm sync:agents` (the Lint workflow fails when they drift) |

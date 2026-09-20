@@ -7,14 +7,15 @@ Imports: `@/` is the repository root (`tsconfig.json` `paths`; Playwright, `tsc`
 ## Client (`api/clients/<resource>.client.ts`)
 
 ```ts
-import type { APIRequestContext, APIResponse } from '@playwright/test';
+import type { APIResponse } from '@playwright/test';
+import type { ApiRequest } from '@/api/api-log';
 import { <Resource>PageSchema, <Resource>Schema, type Create<Resource>Input } from '@/api/schemas/<resource>.schema';
 import { typed } from '@/api/typed-response';
 
 export interface <Resource>ListParams { page?: number; pageSize?: number }
 
 export class <Resource>Client {
-  constructor(private readonly request: APIRequestContext) {}
+  constructor(private readonly request: ApiRequest) {}
 
   async list(params: <Resource>ListParams = {}) {
     return typed(this.request.get('<resources>', { params: { ...params } }), <Resource>PageSchema);
@@ -75,6 +76,7 @@ Derive from a real response (`curl -s "${API_BASE_URL}<resources>/<id>" | head -
 
 | Fixture | Scope | Use it for |
 |---|---|---|
+| `apiLogPage` | test | The page `pw-api-plugin` draws on. `undefined` unless `API_LOG=ui`, so no browser starts otherwise |
 | `api` | test | Anonymous clients: public endpoints, 401 cases |
 | `tokenFor(role)` | worker | Lazy, memoised login per role. A role no test asks for never logs in |
 | `apiWithToken(token)` | test | Bearer clients for any token (also crafted/invalid ones); contexts disposed after the test |
@@ -120,6 +122,15 @@ Scaling rules:
 - New role → one entry in `ROLE_CREDENTIALS`, two env getters, one three-line fixture.
 - Other auth scheme (cookie session, API key, OAuth client credentials) → change `tokenFor` / `apiWithToken` only. Clients never know how they are authenticated.
 - Short-lived tokens → keep the expiry next to the cached promise in `tokenFor` and log in again when it has passed.
+
+## Request/response cards (`api/api-log.ts`, optional)
+
+`API_LOG=off|report|ui` (default `off`). Fixtures pass every context through `withApiLog(context, apiLogPage)` before `createClients`; clients are typed against `ApiRequest` (the six verbs of `APIRequestContext`) and cannot tell the difference. `off` returns the context itself, so the plugin never runs. `report` attaches one card per request to the HTML report. `ui` also draws each card on a page (UI mode, trace viewer) and is the only mode that starts a browser.
+
+- Only `api/api-log.ts` imports `pw-api-plugin`. Enforced by lint.
+- `tokenFor` is not wrapped, so its logins never reach a report. Anything a spec sends through `api` does, the login test's seeded customer password included: cards show bodies verbatim, so keep `API_LOG` off in CI.
+- The plugin parses every non-empty body as JSON. Build a client for a non-JSON endpoint from the unwrapped context.
+- A new fixture that creates its own context wraps it the same way: `createClients(withApiLog(context, apiLogPage))`.
 
 ## Isolation without a reset endpoint
 
