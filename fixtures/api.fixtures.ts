@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { test as base, request, type APIRequestContext } from '@playwright/test';
+import { test as base, request, type APIRequestContext, type Page } from '@playwright/test';
+import { withApiLog, type ApiRequest } from '@/api/api-log';
 import { AdminProductsClient } from '@/api/clients/admin-products.client';
 import { AuthClient } from '@/api/clients/auth.client';
 import { CartClient } from '@/api/clients/cart.client';
@@ -33,6 +34,8 @@ export interface RegisteredUser {
 }
 
 export interface ApiFixtures {
+  /** The page pw-api-plugin draws its cards on. Only defined when `API_LOG=ui`; no browser starts otherwise. */
+  apiLogPage: Page | undefined;
   /** Anonymous clients: public endpoints and 401 cases. */
   api: ApiClients;
   /** Clients sending `Authorization: Bearer <token>`. Contexts are disposed after the test. */
@@ -59,7 +62,7 @@ export interface ApiWorkerFixtures {
   tokenFor: (role: Role) => Promise<string>;
 }
 
-const createClients = (context: APIRequestContext): ApiClients => ({
+const createClients = (context: ApiRequest): ApiClients => ({
   auth: new AuthClient(context),
   products: new ProductsClient(context),
   cart: new CartClient(context),
@@ -68,10 +71,21 @@ const createClients = (context: APIRequestContext): ApiClients => ({
 });
 
 export const apiFixture = base.extend<ApiFixtures, ApiWorkerFixtures>({
-  api: async ({ request }, use) => {
-    await use(createClients(request));
+  // Playwright starts what a fixture destructures, so the browser only exists when the `page` variant is picked.
+  apiLogPage:
+    env.API_LOG === 'ui'
+      ? async ({ page }, use) => {
+          await use(page);
+        }
+      : async ({}, use) => {
+          await use(undefined);
+        },
+
+  api: async ({ request, apiLogPage }, use) => {
+    await use(createClients(withApiLog(request, apiLogPage)));
   },
 
+  // Never logged: worker scope has no page, and these are the seeded credentials, which must not reach a report.
   tokenFor: [
     async ({}, use) => {
       const context = await request.newContext({ baseURL: env.API_BASE_URL });
@@ -102,7 +116,7 @@ export const apiFixture = base.extend<ApiFixtures, ApiWorkerFixtures>({
     { scope: 'worker' },
   ],
 
-  apiWithToken: async ({}, use) => {
+  apiWithToken: async ({ apiLogPage }, use) => {
     const contexts: APIRequestContext[] = [];
     await use(async (token) => {
       const context = await request.newContext({
@@ -110,7 +124,7 @@ export const apiFixture = base.extend<ApiFixtures, ApiWorkerFixtures>({
         extraHTTPHeaders: { Authorization: `Bearer ${token}` },
       });
       contexts.push(context);
-      return createClients(context);
+      return createClients(withApiLog(context, apiLogPage));
     });
     await Promise.all(contexts.map((context) => context.dispose()));
   },
